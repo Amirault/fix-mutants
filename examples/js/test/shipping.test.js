@@ -16,4 +16,8 @@ describe("calculateShipping", () => {
   test("given a heavy parcel, adds the surcharge", () => {
     expect(calculateShipping(50, 30)).toBeCloseTo(12.4);
   });
+
+  test("given a zero total, charges the standard rate instead of throwing", () => {
+    expect(calculateShipping(0, 1)).toBe(4.9);
+  });
 });
