@@ -29,6 +29,7 @@ npx stryker run --mutate "src/<relative/path/to/file>" --reporters json,clear-te
 
 - Raw report: `examples/js/reports/mutation/mutation.json` (default `jsonReporter.fileName`).
 - Keep that file until `verify` has run; copy the final JSON outside the worktree.
+- Add `"ignorePatterns": [".claude", ".agents", ".fix-mutants", "reports"]` to the Stryker config: otherwise Stryker copies the installed skill into its sandbox (and fails on symlinks).
 
 ## Test-only gate
 

@@ -261,7 +261,9 @@ JS = dict(
         "Run from the folder holding `package.json` and the Stryker config (paths in `--mutate` are relative to it):\n\n"
         "```bash\n{cd_line}npx stryker run --mutate \"{source_rel}/<relative/path/to/file>\" --reporters json,clear-text\n```\n\n"
         "- Raw report: `{workdir_prefix}reports/mutation/mutation.json` (default `jsonReporter.fileName`).\n"
-        "- Keep that file until `verify` has run; copy the final JSON outside the worktree."
+        "- Keep that file until `verify` has run; copy the final JSON outside the worktree.\n"
+        "- Add `\"ignorePatterns\": [\".claude\", \".agents\", \".fix-mutants\", \"reports\"]` to the Stryker config: "
+        "otherwise Stryker copies the installed skill into its sandbox (and fails on symlinks)."
     ),
     layers=(
         "Edit this section to name your layers. A caller in scripts, fixtures or test files is not a real caller."
