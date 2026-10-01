@@ -1,0 +1,7 @@
+bin/
+obj/
+StrykerOutput/
+node_modules/
+reports/
+__pycache__/
+.DS_Store

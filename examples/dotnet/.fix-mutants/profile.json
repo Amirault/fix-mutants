@@ -1,0 +1,11 @@
+{
+  "production_root": "examples/dotnet/src/Shop",
+  "test_roots": [
+    "examples/dotnet/tests/Shop.Tests"
+  ],
+  "report_schema_version": "2",
+  "declaration_pattern": "\\b(?:record(?:\\s+(?:class|struct))?|class|struct|interface|enum)\\s+(\\w+)",
+  "gate_allow": [
+    "examples/dotnet/.fix-mutants"
+  ]
+}
