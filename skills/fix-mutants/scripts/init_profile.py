@@ -223,6 +223,7 @@ DOTNET = dict(
         "  --test-project {test_project} \\\n  --mutate \"**/<relative/path/to/File>.cs\" \\\n"
         "  --reporter cleartext --reporter json \\\n  --break-at 0\n```\n\n"
         "- Pass bare project file names, not relative paths.\n"
+        "- For the **baseline** (full run, no `--mutate`) see `report-fetch.md`.\n"
         "- Raw report: `{test_dir}/StrykerOutput/<timestamp>/reports/mutation-report.json`. Never delete `StrykerOutput/` "
         "before `verify` has run; copy the final JSON outside the worktree.\n"
         "- After the final run delete the production and test projects' `bin`/`obj` (stale mutant binaries), then run a "
@@ -249,6 +250,10 @@ DOTNET = dict(
         "- Commit scope and PR title rules: follow the repository's convention (Conventional Commits recommended)"
     ),
     report_glob="'{test_dir}'/StrykerOutput/*/reports/mutation-report.json",
+    baseline_command=(
+        "cd {test_dir}\ndotnet stryker --project {production_project} --test-project {test_project} \\\n"
+        "  --reporter cleartext --reporter json --break-at 0"
+    ),
 )
 
 JS = dict(
@@ -284,6 +289,7 @@ JS = dict(
         "- Commit scope and PR title rules: follow the repository's convention (Conventional Commits recommended)"
     ),
     report_glob="{workdir_prefix}reports/mutation/mutation.json",
+    baseline_command="{cd_line}npx stryker run --reporters json,clear-text",
 )
 
 GENERIC = dict(
@@ -298,6 +304,7 @@ GENERIC = dict(
     build_forced="TODO: edits your compiler/linter forces when code moves between projects.",
     conventions="TODO: test conventions, commit scope, PR title rules.",
     report_glob="<path to the raw JSON report>",
+    baseline_command="TODO: the same command without the file filter (a full run)",
 )
 
 
@@ -331,9 +338,7 @@ def render(detected, name, prefix=Path(".")):
         source_rel=Path(detected["production_root"]).relative_to(prefix).as_posix(),
     )
     parts = {key: value.format(**values) for key, value in base.items()}
-    command_block = parts["command"]
-    fenced = re.search(r"```bash\n(.*?)```", command_block, re.S)
-    run = fenced.group(1).strip() if fenced else parts["command"]
+    run = parts["baseline_command"]
     markdown = PROFILE_MD.format(
         name=name,
         tool=parts["tool"],
@@ -363,6 +368,9 @@ def main(argv=None):
     cli.add_argument("--force", action="store_true", help="overwrite an existing .fix-mutants/")
     args = cli.parse_args(argv)
     repo = Path(args.repo).resolve()
+    if not repo.is_dir():
+        print(f"init_profile: {repo} is not a directory", file=sys.stderr)
+        return 2
 
     detected = None
     if args.stack in ("auto", "dotnet"):
@@ -374,7 +382,7 @@ def main(argv=None):
     if detected is None:
         print(
             "init_profile: no supported stack detected (looked for .csproj test projects and package.json).\n"
-            "Re-run with --stack generic to write a profile with TODOs, or see README → Other stacks.",
+            "Re-run with --stack generic to write a profile with TODOs, or see skills/fix-mutants/references/profile.md.",
             file=sys.stderr,
         )
         return 2

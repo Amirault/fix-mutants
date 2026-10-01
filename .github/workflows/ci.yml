@@ -1,0 +1,52 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.9" }
+      - run: git config --global user.email ci@example.invalid && git config --global user.name ci
+      - run: python -m unittest discover -s skills/fix-mutants/scripts/tests -v
+
+  sandbox-dotnet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "9.0.x" }
+      - run: examples/check-sandbox.sh dotnet
+
+  sandbox-js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: examples/check-sandbox.sh js
+
+  install-fresh-project:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: "9.0.x" }
+      - name: install into a copy of the sandbox and run the generated commands
+        run: |
+          git config --global user.email ci@example.invalid && git config --global user.name ci
+          mkdir /tmp/project && cp -R examples/dotnet/{src,tests,Shop.slnx,.config} /tmp/project/
+          rm -rf /tmp/project/tests/Shop.Tests/StrykerOutput
+          cd /tmp/project && git init -q && git add -A && git commit -qm init
+          "$GITHUB_WORKSPACE/install.sh" /tmp/project
+          python3 - <<'PY' > /tmp/run.sh
+          import re
+          print("set -e")
+          for block in re.findall(r"```bash\n(.*?)```", open(".fix-mutants/report-fetch.md").read(), re.S):
+              print(block)
+          PY
+          dotnet tool restore
+          bash /tmp/run.sh

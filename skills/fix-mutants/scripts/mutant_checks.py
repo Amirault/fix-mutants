@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import glob
 import hashlib
 import json
 import re
@@ -251,6 +252,14 @@ def check_test_only(repo):
     return staged
 
 
+def newest(pattern):
+    """The most recent file matching a path or glob (Stryker.NET writes one folder per run)."""
+    found = sorted(glob.glob(str(pattern)), key=lambda name: Path(name).stat().st_mtime)
+    if not found:
+        raise ValueError(f"no report matches {pattern}")
+    return found[-1]
+
+
 def make_baseline(repo, report_path, now=None):
     """Normalize a raw mutation-testing-elements report into the baseline shape the other commands read."""
     raw = Path(report_path).read_bytes()
@@ -346,7 +355,7 @@ def main(argv=None):
     args = parser().parse_args(argv)
     try:
         if args.action == "baseline":
-            result = make_baseline(args.repo, args.report)
+            result = make_baseline(args.repo, newest(args.report))
             Path(args.out).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
             print(json.dumps({"remaining": result["counts"]["remaining"], "report_sha256": result["report_sha256"]}))
             return 0
@@ -373,7 +382,7 @@ def main(argv=None):
             print(json.dumps({"phase": "preflight", "outcome": args.outcome}))
             return 0
         print(json.dumps(verify_report(
-            read_json(args.report), args.repo, target, args.outcome,
+            read_json(newest(args.report)), args.repo, target, args.outcome,
             new_test=args.new_test, removed_code=args.removed_code,
         ), indent=2))
         return 0

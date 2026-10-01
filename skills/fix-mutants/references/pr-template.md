@@ -1,7 +1,7 @@
 # PR template — mutation-testing fix
 
 Body of every `fix-mutants` PR. Goal: a reviewer understands each kill and decides in one read. Nothing else belongs in the
-description (tool command, report fingerprint, validation results, review verdict go in the the tracker sync log).
+description (tool command, report fingerprint, validation results, review verdict go in the tracker's sync log).
 
 ## How to fill it
 
@@ -9,7 +9,7 @@ description (tool command, report fingerprint, validation results, review verdic
 2. For each mutant, fill one block (the template has one complete block per kill type: copy it, replace every `{{placeholder}}`).
 3. Fill Totals from the per-mutant results, then Review focus, then Why.
 4. Check every link (`git cat-file -e <ref>:<path>`), then open the PR with `Request → PR` set to `pending`.
-5. After `create-pr` returns the URL, replace `pending` with the duration (`gh pr edit --body-file`) — see `SKILL.md` Step 7.
+5. After the PR is opened, replace `pending` with the duration (`gh pr edit --body-file`) — see `SKILL.md` Step 7.
 6. Delete the sections and blocks that do not apply (a kill type with no mutant has no block and no section). Never leave
    `none` or an empty placeholder.
 
@@ -21,7 +21,7 @@ description (tool command, report fingerprint, validation results, review verdic
 | `{{baseline_sha}}`                                                                                         | report `source.sha`, first 10 characters                                                                                                                                                                                                                                                                                                                                     |
 | `{{pipeline_name}}`, `{{workflow_url}}`                                                                    | the pipeline that publishes the baseline, as the profile's _Report source_ gives it (PricingApi: `Pricing/PricingApi Mutation Baseline`)                                                                                                                                                                                                                                                               |
 | `{{targets}}`                                                                                              | number of dedicated targets selected in Step 0 (incidental siblings are not counted here, only in the kill-type counts)                                                                                                                                                                                                                                                      |
-| `{{remaining_before}}`                                                                                     | `remaining` of this baseline in the the tracker Score trend                                                                                                                                                                                                                                                                                                       |
+| `{{remaining_before}}`                                                                                     | `remaining` of this baseline in the tracker's Score trend                                                                                                                                                                                                                                                                                                       |
 | `{{count_new_test}}`, `{{count_edited_test}}`, `{{count_deleted}}`, `{{count_moved}}`, `{{count_skipped}}` | mutants of that kill type, **including incidental siblings** killed or removed by the same change                                                                                                                                                                                                                                                                            |
 | `{{remaining_after}}`                                                                                      | `{{remaining_before}}` − new test − edited test − deleted − moved (skipped are not subtracted)                                                                                                                                                                                                                                                                               |
 | `{{total_time}}`                                                                                           | sum of the **known** per-mutant fix durations, computed by script (`mutant_checks.py duration`), never by hand; a mutant with an `unknown` time adds nothing                                                                                                                                                                                                                 |

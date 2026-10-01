@@ -8,13 +8,13 @@ the result without creating files or wrapping validation commands.
 
 Activate the toolchain as the profile's _Environment setup_ says, then complete the baseline checksum verification in the
 profile's `report-fetch.md`. Before editing, note the base commit and selected baseline ID. Replace example paths and IDs
-with the actual inputs (`<profile>` = `profiles/<project>/profile.json`):
+with the actual inputs (`<profile>` = `.fix-mutants/profile.json`):
 
 ```bash
 REPO="$(git rev-parse --show-toplevel)"
 BASE="$(git rev-parse HEAD)"
-TOOL="$REPO/Pricing/.agents/skills/fix-mutants/scripts/mutant_checks.py"
-PROFILE="$REPO/Pricing/.agents/skills/fix-mutants/profiles/<project>/profile.json"
+TOOL="<path to the installed skill>/scripts/mutant_checks.py"
+PROFILE="$REPO/.fix-mutants/profile.json"
 ```
 
 ## Before expensive validation
@@ -66,6 +66,6 @@ Record duration/model information directly in the tracker, following Steps 0, 2,
 Compute every duration with the script, from the repository root (it reads no repository state):
 
 ```bash
-python3 Pricing/.agents/skills/fix-mutants/scripts/mutant_checks.py duration \
+python3 "$TOOL" duration \
   --start 2026-09-30T08:15:02Z --end 2026-09-30T08:53:31Z   # {"seconds": 2309, "human": "38m 29s"}
 ```

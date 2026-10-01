@@ -18,7 +18,7 @@ Path taken: <"test" | "last-resort production code change">
 Diff to review: <git diff / file paths changed, or point the agent at `git diff main...HEAD`>
 Current mutation report: <path to the final raw JSON report>
 Validation: <build/test/gate results, exact mutation command and working directory>
-Project profile: <path to profiles/<project>/PROFILE.md — read it: scope, layers, conventions, gate>
+Project profile: <path to .fix-mutants/PROFILE.md — read it: scope, layers, conventions, gate>
 Inspect the code/report yourself. Do not start concurrent mutation runs in the implementation checkout.
 
 Check, and report a clear verdict on each:
@@ -48,7 +48,7 @@ Check, and report a clear verdict on each:
    behaviour-changing fix bundled in (those must be skipped, not fixed)?
 5. CODEBASE CONVENTIONS — the profile's test conventions (structure, naming, categories, assertion
    library), the repository's language rules, no dead/commented code left behind, the project's
-   AGENTS.md craftsmanship rules.
+   contributing/craftsmanship rules (AGENTS.md, CONTRIBUTING.md…).
 6. VALIDATION — clean build, targeted tests pass, scoped mutation result and test-only gate are
    consistent with the path taken. Verify tool versions and command cwd.
    Re-run the read-only check/verify commands with the same arguments.

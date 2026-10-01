@@ -76,8 +76,8 @@ name each in the commit body. Never use them to trim or clean up: that goes to t
 - Take `date -u` the moment the review verdict arrives, before anything else. If the session pauses before that, record
   only measured bounds (e.g. review start + reported review duration), never the resume time.
 - Skipped targets decided in the plan have `unknown` timing; say "decided in the plan, batch-reviewed".
-- Request → PR clock: the **request UTC** is taken at the very start of Step 0 and the **PR UTC** the moment `create-pr`
-  returns the URL (before the PR-link/duration follow-up edit). If the session paused or was resumed in between, the
+- Request → PR clock: the **request UTC** is taken at the very start of Step 0 and the **PR UTC** the moment the PR
+  URL is known (before the PR-link/duration follow-up edit). If the session paused or was resumed in between, the
   duration is a lower bound: record `≥ <human>` and say why in the sync log, like the fix clock.
 - Durations are always written human-readable (`45s`, `38m 29s`, `1h 5m 12s`, `1d 2h 3m 4s`), computed with
   `scripts/mutant_checks.py duration`. Keep bound qualifiers in front (`≥`, `≤`) and `unknown` when unmeasured.
@@ -86,8 +86,8 @@ name each in the commit body. Never use them to trim or clean up: that goes to t
 
 ## Commit and PR hygiene
 
-- Commit subjects ≤ 72 characters (the `commit-msg` hook only checks the format). PR title ≤ 63 characters: the squash
+- Commit subjects ≤ 72 characters (commit hooks usually check only the format). PR title ≤ 63 characters: the squash
   merge appends ` (#NNNN)` (adjust if the project's merge strategy differs).
 - PRs land as squash merges: never cite branch-only SHAs in commit bodies or the tracker; say "earlier in this PR" or use
   the attempt label (T1, T2 …).
-- Follow the profile's branch/push conventions (e.g. a first push with upstream when a post-commit hook pushes).
+- Follow the profile's branch/push conventions (e.g. a first push with upstream).

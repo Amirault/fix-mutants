@@ -1,29 +1,28 @@
 ---
 name: fix-mutants
-description: "[Wakam] Fix reported mutation-testing mutants (any stack, one profile per project; PricingApi/Stryker.NET ships): fetch the verified report, kill each mutant with a new test driven through the right entry-point layer; production code only as a last resort. Autonomous (the PR review is the human gate), always ends with an independent sub-agent review. Invoke to fix, kill, address or clean up mutants or mutation-testing findings."
-category: Wakam Skill
+description: "Fix surviving mutation-testing mutants on any stack (Stryker.NET, StrykerJS, any tool emitting a mutation-testing-elements report): kill each mutant with a new test driven through the right entry-point layer, production code only as a last resort. Autonomous, verified by script, always ends with an independent sub-agent review and a PR for a human to approve. Invoke to fix, kill, address or clean up mutants or mutation-testing findings."
 effort: high
 ---
 
 # Fix Mutants
 
-Kill one or several mutants reported by a project's mutation-testing baseline. One increment per mutant — plan → test-or-code → validate → review → commit, then move to the next (see the project's AGENTS.md → Development Workflow).
+Kill one or several mutants reported by a project's mutation-testing baseline. One increment per mutant — plan → test-or-code → validate → review → commit, then move to the next.
 
 ## Project profile (load first)
 
-This skill is stack- and project-agnostic. Everything specific — scope, mutation command, report source, environment, layers, gate, conventions — lives in `profiles/<project>/` (layout: `profiles/README.md`). Pick the profile from `$ARGUMENTS` (`/fix-mutants <project> …`), else from the project the user names or the one holding the target mutant's path; if only one profile exists, use it. No matching profile → create it from `profiles/README.md` → _Adding a project_ before anything else. Below, **the profile** means that directory's `PROFILE.md` + `profile.json`, **the tracker** its the tracker, **production scope** / **test scope** its `production_root` / `test_roots`.
+This skill is stack- and project-agnostic. Everything specific — scope, mutation command, report source, environment, layers, gate, conventions — lives in the project's `.fix-mutants/` folder (layout: `references/profile.md`), next to its code, versioned with it. Scripts find it by walking up from the working directory, or take `--profile <path>/profile.json` (needed when a monorepo has several). `mutant_checks.py` below is `<skill>/scripts/mutant_checks.py` (Python ≥ 3.9, standard library only; subcommands `baseline`, `list`, `check`, `verify`, `gate`, `duration`). Missing profile → run `python3 <skill>/scripts/init_profile.py --repo .` (it detects the stack and writes the folder), review the generated `PROFILE.md`, then continue. Below, **the profile** means `PROFILE.md` + `profile.json`, **the tracker** its `MUTATION-TRACKING.md`, **production scope** / **test scope** its `production_root` / `test_roots`.
 
 ## References
 
-- `profiles/<project>/PROFILE.md` — the project's scope, environment, mutation command, gate, layers, caller search, conventions (**mandatory**)
-- `profiles/<project>/report-fetch.md` — locate, fetch, and verify the mutation report
+- `.fix-mutants/PROFILE.md` — the project's scope, environment, mutation command, gate, layers, caller search, conventions (**mandatory**)
+- `.fix-mutants/report-fetch.md` — locate, fetch, and verify the mutation report
 - `references/review-checklist.md` — the independent sub-agent review prompt (step 6)
 - `references/pr-template.md` — the PR body template, with the reviewer checklist (step 7)
 - `references/outcome-checks.md` — read-only verifier commands
 - `references/decision-rules.md` — untruncated caller search, what counts as a layer, skip categories, non-unique spans, build-forced edits in moves, multi-mutant plan/count/cut, measurement, commit hygiene (**mandatory**)
-- `profiles/<project>/MUTATION-TRACKING.md` — the ledger of every mutant already fixed/resolved/skipped, synced against the baseline in Step 1 and appended to in Step 7. The reference for "has this been dealt with before" — check it before falling back to `git log`.
-- the profile's test skill/conventions (PricingApi: `write-tests`) — test layer, structure, naming (mandatory reading before writing any test)
-- `git-commit` / `create-pr` skills — commit and PR mechanics (Ask strategy — this work always waits for a review before merging, never Ship/Show)
+- `.fix-mutants/MUTATION-TRACKING.md` — the ledger of every mutant already fixed/resolved/skipped, synced against the baseline in Step 1 and appended to in Step 7. The reference for "has this been dealt with before" — check it before falling back to `git log`.
+- the profile's test conventions, and the project's existing tests — layer, structure, naming (mandatory reading before writing any test)
+- `references/profile.md` — the profile format; `scripts/init_profile.py` writes it
 
 ## Non-negotiable rules
 
@@ -31,11 +30,11 @@ This skill is stack- and project-agnostic. Everything specific — scope, mutati
 - **Never modify an existing test, assertion, fixture, helper, or test config.** One new test per mutant, at the correct layer.
 - **Never construct a leaf type (an exception, a value object) directly just to "poke" a mutant.** Drive it through the public entry point of the adapter/use-case that actually owns the mutated code (per the profile's test conventions). A test that only exercises a class in isolation when that class is normally reached through a use-case is testing an implementation detail — wrong layer.
 - **Scope the mutation tool explicitly on every run** with the profile's command: project, test project, smallest file/range. Never run an unscoped whole-project mutation test. Mutation and task-directed test runs use only the intended unit/spec project. Mandatory commit hooks may run broader suites: never bypass them; report their results separately.
-- **Verify outcomes, not tool messages.** Run the skill's `scripts/mutant_checks.py --profile <profile.json> check` after staging removals/moves, before expensive validation, and `verify` against the final raw mutation JSON. An empty file is not a deletion; `Killed` without the new test in `killedBy` is not a demonstrated test fix.
+- **Verify outcomes, not tool messages.** Run `mutant_checks.py --profile <profile.json> check` after staging removals/moves, before expensive validation, and `verify` against the final raw mutation JSON. An empty file is not a deletion; `Killed` without the new test in `killedBy` is not a demonstrated test fix.
 - **Never truncate a caller search** (`head`/`tail`/`-m`): a cut-off grep once made live code look dead. Use the profile's split production/test search (pattern in `references/decision-rules.md`).
-- **Measure two durations, both human-readable.** The **fix duration** (target selection → independent review verdict, per mutant) and the **request → PR duration** (the user's request → the PR exists, per PR). Take every timestamp with `date -u +%Y-%m-%dT%H:%M:%SZ` the moment the event happens, compute the duration with `python3 scripts/mutant_checks.py duration --start <UTC> --end <UTC>` (never by hand) and write its `human` value (`38m 29s`, `1h 5m 12s`) — not raw seconds — in the tracker, the PR description and the final message to the user. Record exact agent/model metadata. Never invent missing duration/model data.
-- **Never ask the user for a decision.** This skill runs unattended end-to-end: pick the default, act, and record the reasoning in the PR (and the tracker) so the reviewer can overturn it. The Ask-strategy PR review is the approval gate for every change, production code included — it stands in for AGENTS.md's "ASK before" list within this skill. When a decision would change runtime behaviour (a real defect, not dead code), don't make it: mark the mutant `🟡 Skipped` with the reason, give it its own block in the PR (kill type `Skipped (not fixed)`), and move on.
-- **One commit per mutant fix**, Conventional Commits, scope per the profile. Always **Ask** (branch + PR) — mutant fixes affect shared test/production code and deserve review.
+- **Measure two durations, both human-readable.** The **fix duration** (target selection → independent review verdict, per mutant) and the **request → PR duration** (the user's request → the PR exists, per PR). Take every timestamp with `date -u +%Y-%m-%dT%H:%M:%SZ` the moment the event happens, compute the duration with `python3 <skill>/scripts/mutant_checks.py duration --start <UTC> --end <UTC>` (never by hand) and write its `human` value (`38m 29s`, `1h 5m 12s`) — not raw seconds — in the tracker, the PR description and the final message to the user. Record exact agent/model metadata. Never invent missing duration/model data.
+- **Never ask the user for a decision.** This skill runs unattended end-to-end: pick the default, act, and record the reasoning in the PR (and the tracker) so the reviewer can overturn it. The PR review is the approval gate for every change, production code included — it stands in for any "ask before" rule within this skill. When a decision would change runtime behaviour (a real defect, not dead code), don't make it: mark the mutant `🟡 Skipped` with the reason, give it its own block in the PR (kill type `Skipped (not fixed)`), and move on.
+- **One commit per mutant fix**, Conventional Commits, scope per the profile. Always a branch + PR, never a direct push to the main branch and never self-merged: mutant fixes affect shared test/production code and deserve a human review.
 
 ## Step 0 — Scope the request
 
@@ -57,7 +56,7 @@ Follow the profile's `report-fetch.md`. Confirm the report's integrity checksum 
 
 1. Compare the fetched `generated_at`/source revision to the tracker's "Latest known baseline" header.
    - **Unchanged** → skip re-sync, use the tracker as-is.
-   - **New baseline** → for every `🟢 Fixed`/`⚪ Resolved-incidentally` ledger row, confirm it's still gone/killed in the new report (re-locate by `(file, mutator, snippet)`, not `id` or line — both drift). If one has come back alive, mark it `🔴 Regressed` and flag it in the PR's _Review focus_ — don't silently re-fix it as if new. Then append a new Score trend row with the fresh counts, add the matching point (baseline date `MM-DD`, `remaining`) to the Progress curve chart under it (its `x-axis` and `line` lists, and widen the `y-axis` range if the value falls outside it), and update the header block.
+   - **New baseline** → for every `🟢 Fixed`/`⚪ Resolved-incidentally` ledger row, confirm it's still gone/killed in the new report (re-locate by `(file, mutator, snippet)`, not `id` or line — both drift). If one has come back alive, mark it `🔴 Regressed` and flag it in the PR's _Review focus_ — don't silently re-fix it as if new. Then append a new Score trend row with the fresh counts, if the tracker has a Progress curve chart add the matching point (baseline date `MM-DD`, `remaining`) to it, and update the header block.
 2. **Check for mutants already resolved on this branch.** The ledger only knows about mutants from _prior runs_; a mutant a _human_ fixed outside this skill, or one this same run's earlier increment touched incidentally, won't be in it yet. Before picking a target in Step 2: look the candidate up in the ledger first (O(1)); if absent, fall back to `git log <report.source.sha>..HEAD -- <candidate mutant file(s)>` — if a commit already touched the file, diff its content at `report.source.sha` against `HEAD` at the mutant's location, and if the mutated code no longer exists or was already covered, skip that mutant (note why, and record it in the tracker as part of Step 7) and move to the next one in report order.
 
 ## Step 2 — Identify each target mutant
@@ -73,7 +72,7 @@ Immediately note the UTC start time for the selected target (the **fix clock** s
 2. Confirm the chosen input actually reaches the mutated branch (reason through it, don't guess) — build a small local probe if a third-party behavior is involved (e.g. what a library does with a `null` argument) rather than assuming.
 3. Write exactly **one** new test (new file or appended to the right existing test file) that fails under the mutant and passes against real code, asserting functional behaviour.
 4. Build, run the new test, then run the scoped mutation command directly. Confirm target `Killed` and the new test in `killedBy`. This final mutation run also serves Step 5 if no relevant code/test changes intervene.
-5. Run the profile's test-only gate on the staged diff — it must PASS. If it fails, either the change isn't test-only (fix that) or this mutant belongs in Step 4. A profile without a gate command requires the PR to show that the diff stays inside the test scope (plus the tracker).
+5. Run the test-only gate on the staged diff (`python3 <skill>/scripts/mutant_checks.py --profile <profile> gate --repo .`, or the profile's own command) — it must PASS. If it fails, either the change isn't test-only (fix that) or this mutant belongs in Step 4. A profile without a gate command requires the PR to show that the diff stays inside the test scope (plus the tracker).
 
 **Mutation command:** the profile's _Mutation command_, run from its working directory exactly as CI does, with the smallest filter that covers the target. Honour the profile's pitfalls (solution-mode traps, project-name forms, tool restore). Pin check: the local tool version and CI's must agree — mention any skew in the PR if a result looks version-dependent.
 
@@ -123,7 +122,7 @@ After the final review, note UTC end and compute the **fix duration** with `muta
 
 ## Step 7 — Commit and PR
 
-One commit per mutant. Type `test` when Step 3's path was used; `refactor` for Step 4 (dead code). Never `fix` — behaviour-changing defects are skipped, not fixed (see _Never ask_). Delegate to `git-commit` (Ask strategy) then `create-pr`.
+One commit per mutant. Type `test` when Step 3's path was used; `refactor` for Step 4 (dead code). Never `fix` — behaviour-changing defects are skipped, not fixed (see _Never ask_). Commit on a dedicated branch, push it and open the PR with the host's CLI (`gh pr create`, `glab mr create`…) or, without one, print the PR body for the user to paste.
 
 Commit from the working directory and with the toolchain activation the profile prescribes (its _Environment setup_), so the commit hooks find their tools.
 
@@ -132,8 +131,8 @@ mutant's outcome to the tracker:
 
 - One new **Ledger** row: file, line (at the baseline sha), mutator, status (`🟢 Fixed` or `⚪
 Resolved-incidentally` for a sibling mutant on the same removed/changed code), the PR link + commit
-  sha (fill the PR link in after `create-pr` returns it — amend the same commit or add it as part of
-  the PR description edit, whichever `create-pr` supports; the commit's own body doesn't need it), and
+  sha (fill the PR link in after the PR exists — amend the same commit or add it as part of
+  the PR description edit; the commit's own body doesn't need it), and
   a one-line note.
 - One new **Sync log** entry (newest first): baseline used, what Step 1's staleness check found (if
   anything was skipped as already-resolved), which mutant was selected and why, path taken, and the
@@ -150,7 +149,7 @@ Resolved-incidentally` for a sibling mutant on the same removed/changed code), t
 
 The tracker is allowlisted in the profile's test-only gate alongside the test projects (a profile without a gate allows it by convention), so staging it together with a Step 3 test-only fix still passes — a documented exception (a ledger entry, not production or test code), not a loophole.
 
-**Request → PR duration (post-compute).** The moment `create-pr` returns the PR URL, run `date -u +%Y-%m-%dT%H:%M:%SZ` (the **PR UTC**) — before any follow-up edit — and compute `mutant_checks.py duration --start <request UTC> --end <PR UTC>`. Write the result with the PR link wherever the PR link is filled in (ledger/Execution-history `pending` cells, PR description), using the same amend-or-edit mechanism as the PR link; that follow-up edit's own time is not counted. One PR per mutant in a single request: the clock of PR N+1 starts when PR N was created (PR 1 starts at the request UTC) — say so in the sync log. A bundled PR has one request → PR duration and one fix duration per target. The final message to the user gives the PR description's totals and one-sentence summaries (per-target kill type and fix duration, then request → PR).
+**Request → PR duration (post-compute).** The moment the PR URL is known, run `date -u +%Y-%m-%dT%H:%M:%SZ` (the **PR UTC**) — before any follow-up edit — and compute `mutant_checks.py duration --start <request UTC> --end <PR UTC>`. Write the result with the PR link wherever the PR link is filled in (ledger/Execution-history `pending` cells, PR description), using the same amend-or-edit mechanism as the PR link; that follow-up edit's own time is not counted. One PR per mutant in a single request: the clock of PR N+1 starts when PR N was created (PR 1 starts at the request UTC) — say so in the sync log. A bundled PR has one request → PR duration and one fix duration per target. The final message to the user gives the PR description's totals and one-sentence summaries (per-target kill type and fix duration, then request → PR).
 
 PR description follows `references/pr-template.md` and nothing more, in this order (essentials first): Why, Totals, Review focus, how each mutant was killed — no Recap table, Approach, Testing, Next steps, review-verdict or checklist sections (mutation-tool command, working directory, report timestamp and fingerprint, validation results, the Step 6 verdict, skipped mutants and leftover cleanup go in the the tracker sync log). Mutants are grouped by kill type (🧪, ⚠️✏️, ⚠️🗑️, ⚠️📦, ⏭️), each mutant being one collapsed `<details>` block whose summary line has a number `n°n` (never `#n`, which the code host turns into an issue link; 1…N across the PR, in displayed order, quoted by Review focus) (never the report's id or idx — those stay in the tracking sync log), then one plain sentence of 14 words at most (what was missed, or what was deleted — no title prefix) the number of mutants it covers and the time; the source link and class go on the first line inside the block. Each block holds: clickable source link, class/method, explicit kill type with its emoji (`🧪 New test added`/`⚠️✏️ Existing test edited` (the recorded exception to the no-edit rule; commit type `test`)/`⚠️🗑️ Dead code deleted`/`⚠️📦 Code moved to another project`/`⏭️ Skipped (not fixed)`; an edited test, deleted or moved code also gets a ⚠️ quoted warning, since no fresh test proves it), a one-sentence plain-language summary, the **code before the change** and the **code with the mutation applied** and **how it was killed** (why existing tests missed it; the new test with name + link, or the removed/moved code with the Step 4 evidence; whether production code was touched). Totals as a subtraction table: the baseline's remaining count, one `−` row per kill type (new test, edited test, deleted, moved; skipped ones are not subtracted and go in the line under the table), and the remaining after this PR as the last row, total fix duration (sum of the per-target durations, by script), `Request → PR: 52m 10s` and, under the totals, the progress chart (the the tracker Progress curve points plus a last `after this PR` point = remaining mutants); the final message to the user repeats the totals and the one-sentence summaries. The request → PR duration only exists once the PR does, so write `pending` in the description passed to `create-pr` and fill it in with the PR link (see above). Keep commit subjects ≤ 72 and the PR title ≤ 63 characters, and never cite branch-only SHAs (squash merge) — see `references/decision-rules.md` → _Commit and PR hygiene_.
 
@@ -159,4 +158,4 @@ PR description follows `references/pr-template.md` and nothing more, in this ord
 Process sequentially, one full loop (Steps 2–7) per mutant. Default to one PR per mutant (small
 batches, easier review, and one clean ledger entry per PR) unless the user asks to bundle — decide,
 don't ask (see Step 0). When bundling, keep one commit per target, follow the plan/count/cut rules in
-`references/decision-rules.md`, and put skipped targets' ledger rows in the next code commit. After the PR, leave the worktree in place — skip `git-commit`'s cleanup question.
+`references/decision-rules.md`, and put skipped targets' ledger rows in the next code commit. After the PR, leave the worktree/branch in place.
