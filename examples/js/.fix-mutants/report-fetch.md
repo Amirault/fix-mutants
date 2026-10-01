@@ -12,9 +12,9 @@ cd "$(git rev-parse --show-toplevel)"   # the commands below run from the git ro
 Then normalise it into a baseline (alive mutants only, repo-relative paths, sha256 of the raw report):
 
 ```bash
-python3 examples/js/.claude/skills/fix-mutants/scripts/mutant_checks.py baseline --repo . \
+python3 examples/js/.claude/skills/fix-mutants/scripts/mutant_checks.py --profile examples/js/.fix-mutants/profile.json baseline --repo . \
   --report examples/js/reports/mutation/mutation.json --out /tmp/verified-baseline.json
-python3 examples/js/.claude/skills/fix-mutants/scripts/mutant_checks.py list --repo . --baseline /tmp/verified-baseline.json --limit 20
+python3 examples/js/.claude/skills/fix-mutants/scripts/mutant_checks.py --profile examples/js/.fix-mutants/profile.json list --repo . --baseline /tmp/verified-baseline.json --limit 20
 ```
 
 Rules: the `baseline` output's `report_sha256` is the integrity check — record it in the tracker. The array order of

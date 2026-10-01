@@ -40,7 +40,7 @@ dotnet stryker \
 ## Test-only gate
 
 ```bash
-python3 examples/dotnet/.claude/skills/fix-mutants/scripts/mutant_checks.py gate --repo .   # from the git root
+python3 examples/dotnet/.claude/skills/fix-mutants/scripts/mutant_checks.py --profile examples/dotnet/.fix-mutants/profile.json gate --repo .   # from the git root
 ```
 
 Passes only when the staged diff touches the test roots, the `.fix-mutants/` folder and the paths listed in `profile.json` →

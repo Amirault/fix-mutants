@@ -34,7 +34,7 @@ npx stryker run --mutate "src/<relative/path/to/file>" --reporters json,clear-te
 ## Test-only gate
 
 ```bash
-python3 examples/js/.claude/skills/fix-mutants/scripts/mutant_checks.py gate --repo .   # from the git root
+python3 examples/js/.claude/skills/fix-mutants/scripts/mutant_checks.py --profile examples/js/.fix-mutants/profile.json gate --repo .   # from the git root
 ```
 
 Passes only when the staged diff touches the test roots, the `.fix-mutants/` folder and the paths listed in `profile.json` →
