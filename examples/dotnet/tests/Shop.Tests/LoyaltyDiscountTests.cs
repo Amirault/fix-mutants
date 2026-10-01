@@ -15,4 +15,10 @@ public class LoyaltyDiscountTests
     {
         Assert.That(LoyaltyDiscount.Apply(100m, 10), Is.EqualTo(90m));
     }
+
+    [Test]
+    public void Given_customer_with_exactly_five_years_When_applying_Should_give_ten_percent()
+    {
+        Assert.That(LoyaltyDiscount.Apply(100m, 5), Is.EqualTo(90m));
+    }
 }

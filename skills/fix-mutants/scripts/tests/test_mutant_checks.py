@@ -102,10 +102,51 @@ class MutantChecksTests(unittest.TestCase):
         # Then
         self.assertEqual(rows[0]["original"], "class Example { }")
 
+    def test_given_profile_below_repo_root_when_finding_it_should_locate_it(self):
+        # Given
+        nested = self.repo / "tools" / "app" / ".fix-mutants"
+        nested.mkdir(parents=True)
+        (nested / "profile.json").write_text("{}", encoding="utf-8")
+        self.profile.unlink()
+
+        # When
+        with tempfile.TemporaryDirectory() as elsewhere:
+            found = self.checks.find_profile(elsewhere, repo=self.repo)
+
+        # Then
+        self.assertEqual(found, (nested / "profile.json").resolve())
+
     def test_given_no_profile_when_finding_it_should_explain_how_to_create_one(self):
         # When / Then
         with tempfile.TemporaryDirectory() as empty, self.assertRaisesRegex(ValueError, "init_profile"):
             self.checks.find_profile(empty)
+
+    def test_given_siblings_sharing_location_and_mutator_when_verifying_should_match_by_replacement(self):
+        # Given
+        report = self.report()
+        killed = report["files"]["Example.cs"]["mutants"][0]
+        killed.update(replacement="x > 5")
+        sibling = {**killed, "id": "1", "replacement": "x < 5", "status": "Survived", "killedBy": []}
+        report["files"]["Example.cs"]["mutants"].append(sibling)
+        target = {**self.mutant, "replacement": "x > 5"}
+
+        # When
+        result = self.checks.verify_report(
+            report, self.repo, target, "test", new_test="GivenInput_WhenAction_ShouldResult"
+        )
+
+        # Then
+        self.assertEqual(result["alive_in_scope"], 1)
+
+    def test_given_qualified_test_name_in_report_when_verifying_should_accept_the_short_name(self):
+        # Given
+        report = self.report()
+        report["testFiles"][next(iter(report["testFiles"]))]["tests"][0]["name"] = "Ns.Class.GivenInput_WhenAction_ShouldResult"
+
+        # When / Then
+        self.checks.verify_report(
+            report, self.repo, self.mutant, "test", new_test="GivenInput_WhenAction_ShouldResult"
+        )
 
     def test_given_staged_test_and_production_files_when_gating_should_reject_production(self):
         # Given

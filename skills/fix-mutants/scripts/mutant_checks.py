@@ -28,12 +28,21 @@ def use_profile(path):
     DECLARATIONS = profile["declaration_pattern"]
 
 
-def find_profile(start=None):
-    """Walk up from `start` (default: cwd) to the nearest .fix-mutants/profile.json."""
+def find_profile(start=None, repo=None):
+    """Nearest .fix-mutants/profile.json walking up from `start`, else the only one under `repo`."""
     here = Path(start or Path.cwd()).resolve()
     for folder in (here, *here.parents):
         if (folder / PROFILE_RELATIVE).is_file():
             return folder / PROFILE_RELATIVE
+    if repo:
+        found = [
+            path for path in Path(repo).resolve().rglob(str(PROFILE_RELATIVE))
+            if not {"node_modules", ".git"}.intersection(path.parts)
+        ]
+        if len(found) == 1:
+            return found[0]
+        if found:
+            raise ValueError("several profiles found, pass --profile: " + ", ".join(map(str, found)))
     raise ValueError("no .fix-mutants/profile.json found: run scripts/init_profile.py first")
 
 
@@ -144,6 +153,12 @@ def report_tests(report, repo):
     return tests
 
 
+def same_replacement(mutant, target):
+    """Tell apart mutants sharing location and mutator (`>= 5` -> `> 5` and `< 5`) by their replacement text."""
+    wanted = target.get("replacement")
+    return not wanted or mutant.get("replacement") in (None, wanted)
+
+
 def verify_report(report, repo, target, outcome, *, new_test=None, removed_code=None):
     if str(report.get("schemaVersion")) != SCHEMA_VERSION:
         raise ValueError(f"expected a raw mutation-testing-elements schemaVersion {SCHEMA_VERSION} report")
@@ -168,6 +183,7 @@ def verify_report(report, repo, target, outcome, *, new_test=None, removed_code=
     matches = [
         mutant for mutant in data["mutants"]
         if mutant["location"] == target["location"] and mutant["mutatorName"] == target["mutator"]
+        and same_replacement(mutant, target)
     ]
     if outcome == "removed":
         if matches:
@@ -177,7 +193,10 @@ def verify_report(report, repo, target, outcome, *, new_test=None, removed_code=
         return result
     if len(matches) != 1 or matches[0]["status"] != "Killed":
         raise ValueError("target must uniquely match location/mutator and be Killed")
-    killers = {str(test["id"]) for test in tests if test["name"] == new_test}
+    killers = {
+        str(test["id"]) for test in tests
+        if new_test and (test["name"] == new_test or test["name"].endswith("." + new_test))
+    }
     if not killers or not killers.intersection(map(str, matches[0].get("killedBy", []))):
         raise ValueError("target was not killed by the named new test")
     return result
@@ -335,11 +354,11 @@ def main(argv=None):
                 print(json.dumps(row, ensure_ascii=False))
             return 0
         if args.action == "gate":
-            use_profile(args.profile or find_profile())
+            use_profile(args.profile or find_profile(repo=args.repo))
             print(json.dumps({"test_only": True, "staged": check_test_only(args.repo)}))
             return 0
         if args.action in {"check", "verify"}:
-            use_profile(args.profile or find_profile())
+            use_profile(args.profile or find_profile(repo=args.repo))
         if args.action == "duration":
             print(json.dumps(duration(args.start, args.end)))
             return 0
