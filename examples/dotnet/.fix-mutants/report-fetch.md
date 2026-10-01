@@ -11,6 +11,7 @@ dotnet stryker \
   --mutate "**/<relative/path/to/File>.cs" \
   --reporter cleartext --reporter json \
   --break-at 0
+cd "$(git rev-parse --show-toplevel)"   # the commands below run from the git root
 ```
 
 Then normalise it into a baseline (alive mutants only, repo-relative paths, sha256 of the raw report):

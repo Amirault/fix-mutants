@@ -1,0 +1,11 @@
+{
+  "production_root": "examples/js/src",
+  "test_roots": [
+    "examples/js/test"
+  ],
+  "report_schema_version": "1.0",
+  "declaration_pattern": "\\b(?:class|function|interface|enum|type)\\s+(\\w+)",
+  "gate_allow": [
+    "examples/js/.fix-mutants"
+  ]
+}

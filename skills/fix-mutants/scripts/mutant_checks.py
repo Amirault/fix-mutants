@@ -134,8 +134,9 @@ def check_removed_span(repo, base, target, removed_code):
 
 def report_files(report, repo):
     project = inside(repo, report["projectRoot"])
-    if project != (Path(repo) / PRODUCTION).resolve():
-        raise ValueError("report projectRoot must be the current production project checkout")
+    production = (Path(repo) / PRODUCTION).resolve()
+    if project != production and not production.is_relative_to(project):
+        raise ValueError("report projectRoot must be the production root or a folder containing it")
     return {inside(project, name): data for name, data in report["files"].items()}
 
 

@@ -1,0 +1,8 @@
+{
+  "testRunner": "jest",
+  "mutate": ["src/**/*.js"],
+  "reporters": ["clear-text", "json"],
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "coverageAnalysis": "perTest",
+  "concurrency": 2
+}

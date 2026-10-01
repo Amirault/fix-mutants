@@ -86,7 +86,7 @@ def detect_js(repo, production=None, tests=None):
         "stack": "js",
         "production_root": source,
         "test_roots": test_dirs or ["test"],
-        "report_schema_version": "2",
+        "report_schema_version": "1.0",
         "declaration_pattern": JS_DECLARATIONS,
         "_test_framework": runner or "unknown",
         "_stryker_installed": "@stryker-mutator/core" in dependencies,
@@ -161,6 +161,7 @@ branch.
 
 ```bash
 {command}
+cd "$(git rev-parse --show-toplevel)"   # the commands below run from the git root
 ```
 
 Then normalise it into a baseline (alive mutants only, repo-relative paths, sha256 of the raw report):
@@ -257,9 +258,9 @@ JS = dict(
         "your test framework, e.g. `@stryker-mutator/jest-runner`)."
     ),
     command=(
-        "Run from the folder holding `package.json` and the Stryker config:\n\n"
-        "```bash\nnpx stryker run --mutate \"{production_root}/<relative/path/to/file>\" --reporters json,clear-text\n```\n\n"
-        "- Raw report: `reports/mutation/mutation.json` (default `jsonReporter.fileName`).\n"
+        "Run from the folder holding `package.json` and the Stryker config (paths in `--mutate` are relative to it):\n\n"
+        "```bash\n{cd_line}npx stryker run --mutate \"{source_rel}/<relative/path/to/file>\" --reporters json,clear-text\n```\n\n"
+        "- Raw report: `{workdir_prefix}reports/mutation/mutation.json` (default `jsonReporter.fileName`).\n"
         "- Keep that file until `verify` has run; copy the final JSON outside the worktree."
     ),
     layers=(
@@ -280,7 +281,7 @@ JS = dict(
         "- Test framework: {framework}; follow the existing tests' structure and naming\n"
         "- Commit scope and PR title rules: follow the repository's convention (Conventional Commits recommended)"
     ),
-    report_glob="reports/mutation/mutation.json",
+    report_glob="{workdir_prefix}reports/mutation/mutation.json",
 )
 
 GENERIC = dict(
@@ -323,6 +324,9 @@ def render(detected, name, prefix=Path(".")):
         production_project=detected.get("_production_project", ""),
         test_project=detected.get("_test_project", ""),
         test_dir=detected["test_roots"][0],
+        cd_line=f"cd {prefix.as_posix()}\n" if prefix != Path(".") else "",
+        workdir_prefix=f"{prefix.as_posix()}/" if prefix != Path(".") else "",
+        source_rel=Path(detected["production_root"]).relative_to(prefix).as_posix(),
     )
     parts = {key: value.format(**values) for key, value in base.items()}
     command_block = parts["command"]
