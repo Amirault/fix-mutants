@@ -46,6 +46,10 @@ description (tool command, report fingerprint, validation results, review verdic
   sentences. Review focus = at most 3 lines, mutants cited by number only.
 - **HTML in `<summary>`**: use `<b>`, `<code>`, `<a href>` (Markdown is not rendered there). Keep a blank line after
   `<summary>` and before `</details>` so code blocks render.
+- **Decisions needed**: written for someone who has not read the code. Always a concrete example with real values, never
+  an abstract description. One entry per skipped mutant whose outcome depends on a business choice (real defect); an
+  equivalent, unclaimable or unobservable mutant needs no example, one line in its block is enough. The section is absent
+  when nothing is skipped.
 - **Warnings**: every kill type except 🧪 and ⏭️ carries a quoted ⚠️ line, because no fresh test proves the fix.
 - **Review focus**, riskiest first: deleted or moved code, edited tests, points where the independent review disagreed,
   mutants left alive as harmless or equivalent (for example "n°2 — equivalent mutant left alive: agree?"). "Nothing unusual" if none.
@@ -56,13 +60,13 @@ description (tool command, report fingerprint, validation results, review verdic
 
 ## Kill types (in displayed order)
 
-| Kill type                              | Meaning                                                                                                                                                                                      | Commit type |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 🧪 **New test added**                  | A new test fails when the change is applied and passes on the real code.                                                                                                                     | `test`      |
-| ⚠️✏️ **Existing test edited**          | An existing test, assertion or fixture was changed so the mutant now fails it. Forbidden by default; this label records the exception.                                                       | `test`      |
-| ⚠️🗑️ **Dead code deleted**             | The code can never run, so it was removed instead of tested. **Production code changed.**                                                                                                    | `refactor`  |
-| ⚠️📦 **Code moved to another project** | The code belongs outside the mutation scope; moved as-is. Not killed. **Production code changed.**                                                                                           | `refactor`  |
-| ⏭️ **Skipped (not fixed)**             | Not fixable, or equivalent: fixing would change runtime behaviour, or the change does not alter observable behaviour so no test can fail (**equivalent mutant**). Left for a human decision. | —           |
+| Kill type                              | Meaning                                                                                                                                                                                             | Commit type |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 🧪 **New test added**                  | A new test fails when the change is applied and passes on the real code.                                                                                                                            | `test`      |
+| ⚠️✏️ **Existing test edited**          | An existing test, assertion or fixture was changed so the mutant now fails it. Forbidden by default; recorded exceptions: a test adapted after dead code was deleted (commit type `refactor` then). | `test`      |
+| ⚠️🗑️ **Dead code deleted**             | The code can never run, so it was removed instead of tested, with the tests that existed only for it. **Production code changed.**                                                                  | `refactor`  |
+| ⚠️📦 **Code moved to another project** | The code belongs outside the mutation scope; moved as-is. Not killed. **Production code changed.**                                                                                                  | `refactor`  |
+| ⏭️ **Skipped (not fixed)**             | Not fixable, or equivalent: fixing would change runtime behaviour, or the change does not alter observable behaviour so no test can fail (**equivalent mutant**). Left for a human decision.        | —           |
 
 ## Template
 
@@ -101,7 +105,18 @@ xychart-beta
 
 ## Review focus
 
-1. **n°{{n}}**, **n°{{n}}** — {{one short question}}
+1. **n°{{n}}**, **n°{{n}}** — {{one short question}} (skipped mutants: "see Decisions needed")
+
+## Decisions needed
+
+<!-- Only when the PR has ⏭️ skipped mutants. One entry per skipped mutant (or group), numbered like its block below. -->
+
+**n°{{n}}** — {{the question to settle, in one sentence}}
+
+- **Situation**: {{what the code does today and what the missed test would have to assume, in plain words}}
+- **Example**: {{a concrete input}} → today: {{current result}}; the alternative: {{result if behaviour changed}}
+- **Options**: (a) leave as is — {{consequence}} · (b) pin today's behaviour with a test — {{consequence}} · (c) change the behaviour in a dedicated PR — {{consequence}}
+- **Recommendation**: {{one option and why}}
 
 ## How each mutant was killed
 
@@ -212,7 +227,7 @@ xychart-beta
 {{code_before}}
 ```
 
-**How it was killed**: not fixed. {{which runtime behaviour fixing would change, and the decision left to a human}}.
+**How it was killed**: not fixed. See _Decisions needed_ n°{{n}}.
 
 </details>
 ````

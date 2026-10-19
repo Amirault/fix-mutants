@@ -39,13 +39,13 @@ Check, and report a clear verdict on each:
    in the scoped test project would lock that in; the fix is a move (Step 4 → Misplaced code) — unless no real
    caller exists in any layer, in which case it is dead and removal is the fix.
 3. NECESSITY AND SCOPE — exactly one new test (or the minimal code removal) for exactly the
-   requested mutant(s)? No existing test/fixture/helper modified? No unrelated mutant "fixed" as a
+   requested mutant(s)? No existing test/fixture/helper modified (except tests deleted/adapted with dead code, or build-forced edits of a test-helper move, each flagged in the PR)? No unrelated mutant "fixed" as a
    side effect being claimed as intentional? No unrelated files touched (build config, mutation
    config, other production code)?
 4. LAST-RESORT DISCIPLINE — if production code changed, was it truly unavoidable (a meaningful test
    was actually impossible, not just inconvenient)? Is it the smallest change — the dead code plus only
    what must go with it to build, orphans and cleanup left to the tracking sync log, a move kept as-is? No
-   behaviour-changing fix bundled in (those must be skipped, not fixed)?
+   behaviour-changing fix bundled in (those must be skipped, not fixed)? Does each skipped real defect have a plain-language _Decisions needed_ entry with a concrete example?
 5. CODEBASE CONVENTIONS — the profile's test conventions (structure, naming, categories, assertion
    library), the repository's language rules, no dead/commented code left behind, the project's
    contributing/craftsmanship rules (AGENTS.md, CONTRIBUTING.md…).
@@ -69,7 +69,7 @@ Check, and report a clear verdict on each:
 7. MEASUREMENT — one attempt for the selected target, not one timing per incidental sibling.
    Check baseline/target identity, UTC start, agent and exact model metadata; unavailable fields must
    say unknown. Return your own runtime-reported model ID if exposed, otherwise unknown. The lead
-   records UTC end and the human-readable fix duration in Execution history only after this review and before commit.
+   records each target's fix duration (end = green `verify`) in Execution history; this single review of the whole run is not part of any fix clock.
    The request → PR duration cannot exist yet (no PR): the `Request → PR` cell must be `pending`, not guessed.
    Retries/waits count; setup before selection and commit/PR/merge work do not. Flag mixed-model
    attempts and missing measurements rather than inferring metadata from branding or timestamps.

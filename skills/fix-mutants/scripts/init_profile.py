@@ -179,8 +179,9 @@ somewhere (artifact, release asset, branch), replace this file with the fetch + 
 
 TRACKER = """# Mutation Testing — Progress Tracker
 
-Ledger of every mutant dealt with: `🟢 Fixed`, `⚪ Resolved-incidentally`, `🟡 Skipped`, `🔴 Regressed`.
-Not a mirror of the alive list (that lives in the baseline report). Updated in the same commit as each fix.
+Progress of the `fix-mutants` skill on this project: baselines, score trend, attempts and one sync-log entry per run.
+The alive-mutant list lives in the baseline report; every examined mutant has a row in `ledger.jsonl`.
+This file and `ledger.jsonl` change in the PR's single code commit (Step 7).
 
 ## Latest known baseline
 
@@ -194,10 +195,14 @@ Not a mirror of the alive list (that lives in the baseline report). Updated in t
 | Synced (UTC) | Baseline `generated_at` | remaining | Killed | Survived | NoCoverage | Note |
 | ------------ | ----------------------- | --------- | ------ | -------- | ---------- | ---- |
 
+### Progress curve
+
+Mutants still alive (`remaining`) at each **distinct** baseline, oldest first. From the second baseline on, keep a
+`xychart-beta` line chart here (date labels `MM-DD`, one point per new baseline); Step 1 appends each point.
+
 ## Ledger
 
-| File | Line (at baseline) | Mutator | Status | PR / commit | Note |
-| ---- | ------------------ | ------- | ------ | ----------- | ---- |
+`ledger.jsonl` (one JSON row per examined mutant), read and written only with `scripts/ledger.py` (`references/ledger.md`).
 
 ## Execution history
 
@@ -415,6 +420,7 @@ def main(argv=None):
     tracker = target / "MUTATION-TRACKING.md"
     if not tracker.exists():
         tracker.write_text(TRACKER, encoding="utf-8")
+    (target / "ledger.jsonl").touch()
     print(f"\nWrote {target.relative_to(repo)}/ — review PROFILE.md (layers, conventions), then run the skill.")
     if detected.get("_alternatives"):
         print("Other (production <- test) pairs found, pass --production/--tests to pick one:")

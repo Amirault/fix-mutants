@@ -12,7 +12,7 @@ with the actual inputs (`<profile>` = `.fix-mutants/profile.json`):
 
 ```bash
 REPO="$(git rev-parse --show-toplevel)"
-BASE="$(git rev-parse HEAD)"
+BASE="$(git merge-base origin/HEAD HEAD)"   # fixed base: recompute it the same way in every shell, never from a moving HEAD
 TOOL="<path to the installed skill>/scripts/mutant_checks.py"
 PROFILE="$REPO/.fix-mutants/profile.json"
 ```

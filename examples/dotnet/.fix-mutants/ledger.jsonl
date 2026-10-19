@@ -1,0 +1,1 @@
+{"file": "examples/dotnet/src/Shop/LoyaltyDiscount.cs", "lines": "7", "mutator": "Equality mutation", "status": "fixed", "pr": null, "note": "`>= 5` → `> 5`: exactly five years had no test; walkthrough commit, no PR"}

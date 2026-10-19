@@ -1,0 +1,939 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mutant Hunt Board</title>
+<meta name="artifact" content="https://claude.ai/artifact/AhNpj2UVuHYCJdckxWtm5M">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a toy tabletop. One HUD strip of meters and controls over one SVG game board the agent token walks. */
+:root {
+  --table: #D9E3EF; --dot: #BFCCDD; --tile: #FFFFFF; --ink: #1B2232; --muted: #5C6B82;
+  --track: #B4C2D6; --trail: #86A9EE; --panel: #F3F6FA;
+  --accent: #2F6FEB; --mutant: #7B3FE4; --kill: #1E9E62; --warn: #DB9A06; --danger: #D6455D; --ghost: #A3AEBF;
+  --f-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --spd: 1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --table: #121927; --dot: #1E2839; --tile: #222C3E; --ink: #E6ECF5; --muted: #95A3BA;
+    --track: #33415A; --trail: #4F78C9; --panel: #1A2232;
+    --accent: #6C9DFF; --mutant: #A57BFF; --kill: #38C985; --warn: #F2BE43; --danger: #F06B80; --ghost: #4A5871;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --table: #121927; --dot: #1E2839; --tile: #222C3E; --ink: #E6ECF5; --muted: #95A3BA;
+  --track: #33415A; --trail: #4F78C9; --panel: #1A2232;
+  --accent: #6C9DFF; --mutant: #A57BFF; --kill: #38C985; --warn: #F2BE43; --danger: #F06B80; --ghost: #4A5871;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--table); color: var(--ink); font-family: var(--f-display); }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 14px 16px 24px; display: grid; gap: 12px; }
+
+/* HUD */
+.hud { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between;
+  background: var(--panel); border: 3px solid var(--ink); border-radius: 16px; padding: 10px 14px; box-shadow: 4px 4px 0 var(--ink); }
+.skill small { font-size: 11px; color: var(--muted); margin-left: 6px; }
+.feed .demo-only { display: none; }
+.skill { font-family: var(--f-mono); font-size: 15px; padding: 6px 10px; border-radius: 10px; background: var(--tile); border: 2px solid var(--ink); }
+.meters { display: flex; flex-wrap: wrap; gap: 8px; }
+.meter { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; padding: 4px 10px; border-radius: 999px;
+  background: var(--tile); border: 2px solid var(--ink); font-variant-numeric: tabular-nums; }
+.meter b { font-weight: 700; min-width: 3.2ch; text-align: right; }
+.meter.run { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.meter.stop b { color: var(--kill); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; background: var(--tile); }
+.seg + .seg { margin-left: 2px; }
+button { font: inherit; font-size: 18px; line-height: 1; color: var(--ink); background: transparent; border: 0; padding: 7px 9px; cursor: pointer; }
+.seg button + button { border-left: 2px solid var(--ink); }
+button[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 22%, var(--tile)); }
+button:hover { background: color-mix(in srgb, var(--accent) 12%, var(--tile)); }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.seg .num { font-size: 14px; font-weight: 700; padding-inline: 11px; }
+
+/* Board */
+.board { position: relative; overflow-x: auto; border: 3px solid var(--ink); border-radius: 20px; box-shadow: 4px 4px 0 var(--ink);
+  background-color: var(--panel); background-image: radial-gradient(var(--dot) 1.4px, transparent 1.6px); background-size: 22px 22px; }
+svg#board { display: block; width: 100%; min-width: 760px; height: auto; }
+.tally { display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; }
+.tally span { font-size: 16px; padding: 5px 10px; border-radius: 999px; border: 2px solid var(--ink); background: var(--tile);
+  font-variant-numeric: tabular-nums; animation: pop calc(400ms / var(--spd)) ease-out; }
+.tally span.skip { border-style: dashed; }
+
+/* SVG parts */
+.trk { fill: none; stroke: var(--track); stroke-width: 10; stroke-linecap: round; }
+.trk.seen { stroke: var(--trail); }
+.trk.run { stroke: var(--accent); stroke-dasharray: 2 16; stroke-width: 9; animation: flow calc(500ms / var(--spd)) linear infinite; }
+.link { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 2 6; stroke-linecap: round; opacity: .45; fill: none; }
+.link.on { stroke: var(--accent); opacity: 1; stroke-width: 3; animation: flow calc(400ms / var(--spd)) linear infinite; }
+.sh { fill: var(--ink); }
+.tile { fill: var(--tile); stroke: var(--ink); stroke-width: 3; }
+.ico { font-size: 28px; text-anchor: middle; dominant-baseline: central; user-select: none; }
+.lbl { font-family: var(--f-display); font-size: 13px; font-weight: 500; fill: var(--muted); text-anchor: middle; display: none; }
+.labels .lbl { display: block; }
+.node, .actor { cursor: help; }
+.node .lift, .actor .lift { transition: transform calc(180ms / var(--spd)) ease-out; transform-box: fill-box; }
+.node.on .lift { transform: translate(-3px, -4px); }
+.node.on .tile { stroke: var(--accent); }
+.node .ring { fill: none; stroke: var(--accent); stroke-width: 3; opacity: 0; }
+.node.on .ring { opacity: .9; animation: ring calc(900ms / var(--spd)) ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.node:focus-visible .tile, .actor:focus-visible .tile { stroke: var(--accent); stroke-width: 4; }
+.node:focus, .actor:focus { outline: none; }
+.actor .tile { fill: var(--panel); stroke-dasharray: 5 4; stroke-width: 2.5; }
+.actor .ico { font-size: 22px; }
+.actor.on .lift { animation: hop calc(500ms / var(--spd)) ease-in-out infinite; }
+.actor.on .tile { stroke: var(--accent); stroke-dasharray: none; }
+.cage { fill: var(--tile); stroke: var(--ink); stroke-width: 3; }
+.bars { stroke: var(--ink); stroke-width: 2; opacity: .18; }
+.inv { color: var(--mutant); transition: color calc(300ms / var(--spd)), opacity calc(300ms / var(--spd)); }
+.inv.ghost { color: var(--ghost); opacity: .55; }
+.inv.taken { opacity: .18; }
+.inv.dead { opacity: 0; }
+.inv.skip { color: var(--warn); }
+.inv.flash { animation: blink calc(220ms / var(--spd)) 3; }
+.xmark { stroke: var(--kill); stroke-width: 3; stroke-linecap: round; animation: pop calc(300ms / var(--spd)) ease-out; }
+.tok-body { fill: var(--accent); stroke: var(--ink); stroke-width: 3; }
+.badge { fill: var(--tile); stroke: var(--ink); stroke-width: 2; }
+.count { font-family: var(--f-display); font-weight: 700; font-size: 14px; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+.pill-r { fill: var(--danger); stroke: var(--ink); stroke-width: 2.5; }
+.pill-g { fill: var(--kill); stroke: var(--ink); stroke-width: 2.5; }
+.gate .tile { stroke-width: 2.5; }
+.gate.ok .tile { fill: color-mix(in srgb, var(--kill) 35%, var(--tile)); stroke: var(--kill); }
+.gate.ok .lift { animation: pop calc(300ms / var(--spd)) ease-out; }
+.sat { fill: var(--accent); }
+.trace-dot { fill: var(--accent); stroke: var(--ink); stroke-width: 2; }
+.trace-ln { stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.part { animation: burst calc(700ms / var(--spd)) ease-out forwards; transform-box: fill-box; }
+.popin { animation: pop calc(320ms / var(--spd)) ease-out; transform-box: fill-box; transform-origin: center; }
+.fade { animation: fadeout calc(700ms / var(--spd)) ease-in forwards; }
+.spin { animation: spin calc(350ms / var(--spd)) linear infinite; transform-box: fill-box; transform-origin: center; }
+.zz { animation: float 2.2s ease-in-out infinite; }
+.row-dot { stroke: var(--ink); stroke-width: 1.5; animation: pop calc(300ms / var(--spd)) ease-out; transform-box: fill-box; transform-origin: center; }
+.scan { fill: none; stroke: var(--kill); stroke-width: 4; animation: scan calc(700ms / var(--spd)) ease-out forwards; transform-box: fill-box; transform-origin: center; }
+.bub { fill: var(--tile); stroke: var(--ink); stroke-width: 2.5; }
+.bub-t { font-family: var(--f-display); font-weight: 500; font-size: 15px; fill: var(--ink); dominant-baseline: central; }
+.bubble.popin { transform-origin: 50% 100%; }
+.talk .face { animation: hop calc(260ms / var(--spd)) ease-in-out infinite; transform-box: fill-box; }
+.paused, .paused * { animation-play-state: paused !important; }
+
+#tip { position: absolute; pointer-events: none; max-width: 260px; padding: 8px 11px; border-radius: 12px; font-size: 14px; line-height: 1.35;
+  background: var(--ink); color: var(--panel); box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 40%, transparent); z-index: 2; }
+
+@keyframes flow { to { stroke-dashoffset: -18; } }
+@keyframes ring { from { transform: scale(.9); opacity: .9; } to { transform: scale(1.35); opacity: 0; } }
+@keyframes hop { 50% { transform: translateY(-5px); } }
+@keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@keyframes blink { 50% { opacity: .1; } }
+@keyframes burst { to { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
+@keyframes fadeout { to { opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes float { 50% { transform: translateY(-6px); } }
+@keyframes scan { from { transform: scale(.4); opacity: 1; } to { transform: scale(2.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+}
+</style>
+
+<div class="wrap">
+  <header class="hud">
+    <span class="skill" title="Skill">fix-mutants <small id="feedName" hidden></small></span>
+    <div class="meters">
+      <span class="meter" title="Alive mutants in the baseline">👾 <b id="alive">24</b></span>
+      <span class="meter" id="mFix" title="Fix clock: mutant picked → verified">⏱️ <b id="clkFix">0:00</b></span>
+      <span class="meter" id="mReq" title="Request → PR clock">🚩➜🙋 <b id="clkReq">0:00</b></span>
+    </div>
+    <div class="controls">
+      <div class="seg">
+        <button id="play" title="Pause" aria-label="Pause">⏸️</button>
+        <button id="restart" title="Restart" aria-label="Restart">🔄</button>
+      </div>
+      <div class="seg" role="group" aria-label="Speed">
+        <button data-speed="0.5" title="Slow" aria-label="Slow">🐢</button>
+        <button data-speed="1" title="Normal" aria-label="Normal speed" aria-pressed="true">🚶</button>
+        <button data-speed="2.2" title="Fast" aria-label="Fast">🐇</button>
+      </div>
+      <div class="seg" id="modes" role="group" aria-label="Source" hidden>
+        <button data-mode="live" title="Live: follow the running agent" aria-label="Live">🔴</button>
+        <button data-mode="replay" title="Replay the latest run" aria-label="Replay">📼</button>
+        <button data-mode="demo" title="Demo" aria-label="Demo" aria-pressed="true">🎮</button>
+      </div>
+      <div class="seg demo-only" role="group" aria-label="Number of mutants">
+        <button class="num" data-n="1" title="1 mutant" aria-label="1 mutant">👾</button>
+        <button class="num" data-n="2" title="2 mutants" aria-label="2 mutants">👾2</button>
+        <button class="num" data-n="3" title="3 mutants" aria-label="3 mutants" aria-pressed="true">👾3</button>
+      </div>
+      <div class="seg demo-only" role="group" aria-label="Path taken at the fork">
+        <button data-path="random" title="Random path" aria-label="Random path" aria-pressed="true">🎲</button>
+        <button data-path="test" title="New test" aria-label="New test path">🧪</button>
+        <button data-path="dead" title="Dead code deleted" aria-label="Dead code path">🗑️</button>
+        <button data-path="move" title="Code moved" aria-label="Moved code path">📦</button>
+        <button data-path="skip" title="Skipped: decision needed" aria-label="Skip path">⏭️</button>
+      </div>
+      <div class="seg">
+        <button id="talk" title="Bot talks" aria-label="Bot talks" aria-pressed="true">💬</button>
+        <button id="labels" title="Show words" aria-label="Show labels" aria-pressed="false">🔤</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="board" id="boardWrap">
+    <svg id="board" viewBox="0 0 1100 700" role="img" aria-label="Animated workflow of the fix-mutants skill">
+      <defs><symbol id="inv" viewBox="0 0 11 8"></symbol></defs>
+      <g id="L-tracks"></g><g id="L-links"></g><g id="L-cage"></g><g id="L-nodes"></g><g id="L-actors"></g><g id="L-fx"></g><g id="L-token"></g>
+    </svg>
+    <div id="tip" hidden></div>
+  </div>
+
+  <div class="tally" id="tally" aria-live="polite"></div>
+</div>
+
+<script>
+/* ---------- Skill spec: swap this object to draw another skill ---------- */
+const SPEC = {
+  nodes: [
+    { id: 'start',  x: 70,   y: 250, icon: '🚩', shape: 'round', label: 'request',   tip: 'You ask to fix mutants. The request → PR clock starts.' },
+    { id: 'report', x: 180,  y: 250, icon: '📥', label: 'fetch report', tip: 'Fetch the latest mutation baseline report (report-fetch.md) and verify its checksum. Survey sub-agents read every mutant.' },
+    { id: 'sync',   x: 290,  y: 250, icon: '🔁', label: 'sync ledger',  tip: 'Sync ledger.jsonl and MUTATION-TRACKING.md: mutants already fixed, resolved or skipped are not targets; queued ones come first.' },
+    { id: 'pick',   x: 410,  y: 250, icon: '🎯', label: 'pick',         tip: 'Take the next alive mutant in report order. The fix clock starts.' },
+    { id: 'trace',  x: 520,  y: 250, icon: '🔍', label: 'trace callers', tip: 'Grep every real caller, untruncated, and climb the call graph to the public entry point: use case, port or endpoint.' },
+    { id: 'fork',   x: 630,  y: 250, icon: '🔀', shape: 'diamond', label: 'decide', tip: 'Choose the path alone. The skill never asks the user during the run.' },
+    { id: 'test',   x: 750,  y: 130, icon: '🧪', label: 'new test',     tip: 'Preferred path: one new test at the right layer that fails under the mutant and passes on real code.' },
+    { id: 'dead',   x: 750,  y: 215, icon: '🗑️', label: 'delete dead',  tip: 'Last resort: no real caller in any layer, so the code is dead and gets deleted.' },
+    { id: 'move',   x: 750,  y: 300, icon: '📦', label: 'move',         tip: 'Last resort: the code belongs to another layer, so it moves there as-is.' },
+    { id: 'skip',   x: 750,  y: 385, icon: '⏭️', label: 'skip',         tip: 'Fixing it would change runtime behaviour. Skip it and carry a "decision needed" to the reviewer.' },
+    { id: 'verify', x: 870,  y: 215, icon: '🔬', label: 'verify',       tip: 'Scoped mutation run on one file, then mutant_checks.py verify: killed, with the new test in killedBy. The fix clock stops.' },
+    { id: 'stage',  x: 1000, y: 250, icon: '🧺', label: 'stage',        tip: 'git add: staged, not committed. Loop to the next mutant.' },
+    { id: 'review', x: 1000, y: 580, icon: '🕵️', label: 'review',       tip: 'One fresh, read-only sub-agent reviews the whole staged diff.' },
+    { id: 'commit', x: 820,  y: 580, icon: '📝', label: 'commit',       tip: 'One commit: test or refactor, never fix. Lefthook runs build, tests and the coverage ratchet.' },
+    { id: 'pr',     x: 640,  y: 580, icon: '🙋', label: 'PR',           tip: 'Push and open the PR for a human review. The request → PR clock stops.' },
+    { id: 'ledger', x: 460,  y: 580, icon: '📒', label: 'ledger',       tip: 'Write ledger rows, durations and the PR link, in one follow-up docs commit.' },
+    { id: 'human',  x: 280,  y: 580, icon: '👤', label: 'human',        tip: 'The human wakes up only now: reviews the PR, answers the decisions, merges.' },
+    { id: 'finish', x: 100,  y: 580, icon: '🏁', shape: 'round', label: 'merged', tip: 'Merged.' },
+  ],
+  edges: [
+    ['start', 'report'], ['report', 'sync'], ['sync', 'pick'], ['pick', 'trace'], ['trace', 'fork'],
+    ['fork', 'test'], ['fork', 'dead'], ['fork', 'move'], ['fork', 'skip'],
+    ['test', 'verify'], ['dead', 'verify'], ['move', 'verify'], ['verify', 'stage'],
+    ['skip', 'stage'],
+    ['stage', 'pick', [[978, 445], [440, 445]]],
+    ['stage', 'review', [[1062, 330], [1062, 505]]],
+    ['review', 'commit'], ['commit', 'pr'], ['pr', 'ledger'], ['ledger', 'human'], ['human', 'finish'],
+  ],
+  actors: [
+    { id: 'ci',      x: 150, y: 150, icon: '☁️', label: 'baseline', links: ['report'], tip: 'The baseline mutation report: a CI artifact or a local full run, as the profile says.' },
+    { id: 'survey',  x: 240, y: 150, icon: '🛰️', label: 'survey agents', links: ['report'], tip: 'Survey sub-agents, one per ~130 mutants, quote each mutated line.' },
+    { id: 'tracker', x: 290, y: 380, icon: '📓', label: 'tracker', links: ['sync', 'ledger'], tip: '.fix-mutants/ledger.jsonl and MUTATION-TRACKING.md: every mutant ever examined, score trend, durations.' },
+    { id: 'writeTests', x: 860, y: 70, icon: '✍️', label: 'write-tests', links: ['test'], tip: 'write-tests skill: layer, GIVEN / WHEN / THEN, naming.' },
+    { id: 'checks',  x: 965, y: 140, icon: '🐍', label: 'mutant_checks', links: ['verify', 'dead', 'move'], tip: 'mutant_checks.py: check, verify, duration.' },
+    { id: 'lefthook', x: 716, y: 660, icon: '🪝', label: 'lefthook', links: ['commit'], tip: 'Lefthook pre-commit hooks. Never bypassed.' },
+    { id: 'github',  x: 560, y: 660, icon: '🐙', label: 'commit-changes · create-pr', links: ['pr'], tip: 'commit-changes and create-pr skills: branch, push, PR.' },
+  ],
+  cage: { x: 330, y: 26, w: 248, h: 126, cols: 8, rows: 3, tip: 'Alive mutants in the latest baseline.' },
+};
+
+/* ---------- tiny SVG helpers ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+const $ = (s) => document.querySelector(s);
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, s, cls = 'ico', size) {
+  const t = el('text', { x, y, class: cls }, parent);
+  if (size) t.style.fontSize = size + 'px';
+  t.textContent = s;
+  return t;
+}
+const L = { tracks: $('#L-tracks'), links: $('#L-links'), cage: $('#L-cage'), nodes: $('#L-nodes'), actors: $('#L-actors'), fx: $('#L-fx'), token: $('#L-token') };
+const svg = $('#board');
+const N = Object.fromEntries(SPEC.nodes.map((n) => [n.id, n]));
+const A = Object.fromEntries(SPEC.actors.map((a) => [a.id, a]));
+
+/* invader sprite */
+const SPRITE = ['..X.....X..', '...X...X...', '..XXXXXXX..', '.XX.XXX.XX.', 'XXXXXXXXXXX', 'X.XXXXXXX.X', 'X.X.....X.X', '...XX.XX...'];
+SPRITE.forEach((row, y) => [...row].forEach((c, x) => { if (c === 'X') el('rect', { x, y, width: 1.02, height: 1.02, fill: 'currentColor' }, $('#inv')); }));
+
+/* ---------- build the board ---------- */
+function edgePath(a, b, via) {
+  const p0 = N[a], p1 = N[b];
+  if (!via) {
+    const dx = p1.x - p0.x, dy = p1.y - p0.y;
+    if (Math.abs(dy) < 2 || Math.abs(dx) < 2) return `M${p0.x},${p0.y} L${p1.x},${p1.y}`;
+    return `M${p0.x},${p0.y} C${p0.x + dx / 2},${p0.y} ${p1.x - dx / 2},${p1.y} ${p1.x},${p1.y}`;
+  }
+  const pts = [[p0.x, p0.y], ...via, [p1.x, p1.y]];
+  let d = `M${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const q0 = pts[Math.max(0, i - 1)], q1 = pts[i], q2 = pts[i + 1], q3 = pts[Math.min(pts.length - 1, i + 2)];
+    const c1 = [q1[0] + (q2[0] - q0[0]) / 6, q1[1] + (q2[1] - q0[1]) / 6];
+    const c2 = [q2[0] - (q3[0] - q1[0]) / 6, q2[1] - (q3[1] - q1[1]) / 6];
+    d += ` C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${q2[0]},${q2[1]}`;
+  }
+  return d;
+}
+const E = {};
+SPEC.edges.forEach(([a, b, via]) => { E[a + '>' + b] = el('path', { d: edgePath(a, b, via), class: 'trk' }, L.tracks); });
+
+function tile(parent, shape, size) {
+  const h = size / 2;
+  if (shape === 'round') { el('circle', { cx: 4, cy: 4, r: h, class: 'sh' }, parent); return el('circle', { r: h, class: 'tile' }, parent); }
+  if (shape === 'diamond') {
+    const pts = `0,${-h - 6} ${h + 6},0 0,${h + 6} ${-h - 6},0`;
+    el('polygon', { points: pts, class: 'sh', transform: 'translate(4,4)' }, parent);
+    return el('polygon', { points: pts, class: 'tile' }, parent);
+  }
+  el('rect', { x: -h + 4, y: -h + 4, width: size, height: size, rx: 14, class: 'sh' }, parent);
+  return el('rect', { x: -h, y: -h, width: size, height: size, rx: 14, class: 'tile' }, parent);
+}
+function hoverable(g, tip, label) {
+  g.dataset.tip = tip;
+  g.setAttribute('tabindex', '0');
+  g.setAttribute('role', 'img');
+  g.setAttribute('aria-label', label + ': ' + tip);
+}
+const NG = {};
+SPEC.nodes.forEach((n) => {
+  const g = el('g', { class: 'node', transform: `translate(${n.x},${n.y})` }, L.nodes);
+  el('circle', { r: 36, class: 'ring' }, g);
+  const lift = el('g', { class: 'lift' }, g);
+  tile(lift, n.shape, 56);
+  n.iconEl = txt(lift, 0, 2, n.icon);
+  txt(g, 0, n.shape === 'diamond' ? 52 : 48, n.label, 'lbl');
+  hoverable(g, n.tip, n.label);
+  NG[n.id] = g;
+});
+const AG = {}, LINKS = {};
+SPEC.actors.forEach((a) => {
+  LINKS[a.id] = a.links.map((id) => el('line', { x1: a.x, y1: a.y, x2: N[id].x, y2: N[id].y, class: 'link' }, L.links));
+  const g = el('g', { class: 'actor', transform: `translate(${a.x},${a.y})` }, L.actors);
+  const lift = el('g', { class: 'lift' }, g);
+  el('rect', { x: -21, y: -21, width: 42, height: 42, rx: 21, class: 'tile' }, lift);
+  txt(lift, 0, 1, a.icon);
+  txt(g, 0, 36, a.label, 'lbl');
+  hoverable(g, a.tip, a.label);
+  AG[a.id] = g;
+});
+
+/* hook gates under the commit tile */
+const GATES = [['🏗️', 'build'], ['🧪', 'tests'], ['📈', 'coverage ratchet']].map(([icon, label], i) => {
+  const x = 780 + i * 44, y = 660;
+  el('line', { x1: 820, y1: 580, x2: x, y2: y, class: 'link' }, L.links);
+  const g = el('g', { class: 'gate actor', transform: `translate(${x},${y})` }, L.actors);
+  const lift = el('g', { class: 'lift' }, g);
+  el('rect', { x: -17, y: -17, width: 34, height: 34, rx: 9, class: 'tile' }, lift);
+  txt(lift, 0, 1, icon, 'ico', 18);
+  hoverable(g, 'Pre-commit hook: ' + label + '.', label);
+  return g;
+});
+
+/* the cage of alive mutants */
+const C = SPEC.cage;
+const cageG = el('g', { class: 'actor' }, L.cage);
+el('rect', { x: C.x + 4, y: C.y + 4, width: C.w, height: C.h, rx: 16, class: 'sh' }, cageG);
+el('rect', { x: C.x, y: C.y, width: C.w, height: C.h, rx: 16, class: 'cage' }, cageG);
+for (let i = 1; i < 10; i++) el('line', { x1: C.x + i * C.w / 10, y1: C.y + 6, x2: C.x + i * C.w / 10, y2: C.y + C.h - 6, class: 'bars' }, cageG);
+hoverable(cageG, C.tip, 'cage');
+el('line', { x1: N.pick.x, y1: N.pick.y, x2: N.pick.x, y2: C.y + C.h, class: 'link' }, L.links);
+const SLOT = [];
+for (let r = 0; r < C.rows; r++) for (let c = 0; c < C.cols; c++) {
+  const x = C.x + 18 + c * 28, y = C.y + 20 + r * 34;
+  SLOT.push({ x: x + 10, y: y + 7, use: el('use', { href: '#inv', x, y, width: 21, height: 15, class: 'inv' }, cageG) });
+}
+
+/* the agent token */
+const tok = el('g', { transform: `translate(${N.start.x},${N.start.y})` }, L.token);
+el('circle', { cx: 3, cy: 3, r: 21, class: 'sh' }, tok);
+el('circle', { r: 21, class: 'tok-body' }, tok);
+txt(tok, 0, 1, '🤖', 'ico face', 22);
+const carry = el('use', { href: '#inv', x: -36, y: -38, width: 24, height: 17, class: 'inv' }, tok);
+const itemG = el('g', { transform: 'translate(25,-24)' }, tok);
+el('circle', { r: 13, class: 'badge' }, itemG);
+const itemT = txt(itemG, 0, 1, '', 'ico', 15);
+const askG = el('g', { transform: 'translate(-26,24)' }, tok);
+el('circle', { r: 12, class: 'badge' }, askG);
+const askT = txt(askG, 0, 1, '❓', 'ico', 13);
+const stageCount = el('g', { transform: `translate(${N.stage.x + 30},${N.stage.y - 30})` }, L.fx.parentNode.insertBefore(el('g', {}), L.fx));
+el('circle', { r: 13, class: 'badge' }, stageCount);
+const stageT = txt(stageCount, 0, 0.5, '0', 'count');
+const zz = txt(L.actors, N.human.x + 26, N.human.y - 36, '💤', 'ico zz', 20);
+
+/* the bot's speech bubble: rides on the token, clamped inside the board */
+const bub = el('g', { class: 'bubble' }, tok);
+el('path', { d: 'M-9,-56 L9,-56 L2,-37 Z', class: 'bub' }, bub);
+const bubBox = el('rect', { y: -84, height: 34, rx: 13, class: 'bub' }, bub);
+const bubText = el('text', { y: -66, class: 'bub-t' }, bub);
+let talkOn = true, bubW = 0, sayId = 0;
+function placeBubble() {
+  if (!bubW || !tok.pos) return;
+  const left = Math.min(Math.max(-bubW / 2, 8 - tok.pos.x), 1092 - tok.pos.x - bubW);
+  bubBox.setAttribute('x', left); bubText.setAttribute('x', left + 13);
+}
+
+/* ---------- time: a pausable, speed-aware scheduler ---------- */
+let cur = 'start', speed = 1, playing = true, runId = 0, timers = [], simNow = 0, last = performance.now();
+const SIM_RATE = 0.115; // simulated seconds per real millisecond at speed 1
+class Cancel extends Error {}
+function wait(ms, onP) {
+  return new Promise((res, rej) => timers.push({ ms, left: ms, res, rej, onP, run: runId }));
+}
+const ease = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+const anim = (ms, fn) => wait(ms, (p) => fn(ease(p)));
+function frame(t) {
+  const dt = Math.min(64, t - last); last = t;
+  if (playing) {
+    const k = speed * boost();
+    if (feed.mode === 'demo') simNow += dt * speed * SIM_RATE;
+    else if (feed.mode === 'replay') simNow += (dt / 1000) * REPLAY_RATE[speed];
+    else if (!feed.catchUp) simNow += dt / 1000;
+    for (const tm of [...timers]) {
+      tm.left -= dt * k;
+      const p = Math.min(1, 1 - tm.left / tm.ms);
+      tm.onP && tm.onP(p);
+      if (tm.left <= 0) { timers.splice(timers.indexOf(tm), 1); tm.res(); }
+    }
+    clocks.forEach((c) => c.draw());
+  }
+  requestAnimationFrame(frame);
+}
+function fmt(s) {
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${m}:${String(r).padStart(2, '0')}`;
+}
+function Clock(valueEl, meterEl) {
+  return {
+    t0: null, t1: null,
+    start() { this.t0 = simNow; this.t1 = null; meterEl.className = 'meter run'; },
+    stop() { this.t1 = simNow; meterEl.className = 'meter stop'; return this.t1 - this.t0; },
+    reset() { this.t0 = this.t1 = null; meterEl.className = 'meter'; valueEl.textContent = '0:00'; },
+    draw() { if (this.t0 !== null) valueEl.textContent = fmt((this.t1 ?? simNow) - this.t0); },
+  };
+}
+const fixClock = Clock($('#clkFix'), $('#mFix')), reqClock = Clock($('#clkReq'), $('#mReq'));
+const clocks = [fixClock, reqClock];
+
+/* ---------- state ---------- */
+const GHOSTS = [1, 4, 10];
+const S = { n: 3, mode: 'random', alive: 0, staged: 0, asks: 0, done: [] };
+function setAlive() { S.alive = SLOT.filter((s) => s.state === 'alive' || s.state === 'taken' || s.state === 'skip').length; $('#alive').textContent = S.alive; }
+function slotState(i, st) { SLOT[i].state = st; SLOT[i].use.setAttribute('class', 'inv ' + st); }
+function setItem(icon) { itemT.textContent = icon || ''; itemG.style.display = icon ? '' : 'none'; }
+function setAsks(n) { S.asks = n; askG.style.display = n ? '' : 'none'; askT.textContent = n > 1 ? '❓' + n : '❓'; }
+function tokenAt(x, y) { tok.setAttribute('transform', `translate(${x},${y})`); tok.pos = { x, y }; placeBubble(); }
+function say(line) {
+  const id = ++sayId, chars = [...line];
+  bubText.textContent = line;
+  bubW = bubText.getComputedTextLength() + 26;
+  bubBox.setAttribute('width', bubW);
+  placeBubble();
+  bub.style.display = talkOn ? '' : 'none';
+  bub.classList.remove('popin'); void bub.getBBox(); bub.classList.add('popin');
+  tok.classList.add('talk');
+  wait(chars.length * 28, (p) => { if (id === sayId) bubText.textContent = chars.slice(0, Math.ceil(p * chars.length)).join(''); })
+    .then(() => { if (id === sayId) tok.classList.remove('talk'); }, () => {});
+  return talkOn ? 900 + chars.length * 45 : 0;
+}
+
+function reset() {
+  runId++;
+  timers.forEach((t) => t.rej(new Cancel())); timers = [];
+  L.fx.replaceChildren();
+  $('#tally').replaceChildren();
+  Object.values(E).forEach((p) => p.setAttribute('class', 'trk'));
+  Object.values(NG).forEach((g) => g.classList.remove('on'));
+  Object.values(AG).forEach((g) => g.classList.remove('on'));
+  Object.values(LINKS).flat().forEach((l) => l.setAttribute('class', 'link'));
+  GATES.forEach((g) => g.classList.remove('ok'));
+  SLOT.forEach((_, i) => slotState(i, 'alive'));
+  N.human.iconEl.textContent = '👤'; zz.style.display = '';
+  S.staged = 0; stageT.textContent = '0'; S.done = [];
+  setAsks(0); setItem(''); carry.style.display = 'none';
+  bub.style.display = 'none'; bubW = 0; sayId++; tok.classList.remove('talk');
+  tokenAt(N.start.x, N.start.y); cur = 'start';
+  fixClock.reset(); reqClock.reset();
+  setAlive();
+}
+
+/* ---------- moves ---------- */
+async function go(a, b) {
+  const p = E[a + '>' + b], len = p.getTotalLength();
+  p.setAttribute('class', 'trk run');
+  await wait(len / 0.3, (t) => { const pt = p.getPointAtLength(ease(t) * len); tokenAt(pt.x, pt.y); });
+  p.setAttribute('class', 'trk seen');
+  cur = b;
+}
+async function visit(id, ms, actors = [], fx, line) {
+  NG[id].classList.add('on');
+  actors.forEach((a) => { AG[a]?.classList.add('on'); (LINKS[a] || []).forEach((l) => l.setAttribute('class', 'link on')); });
+  const read = line ? say(line) : 0;
+  try { await Promise.all([wait(Math.max(ms, read)), fx ? fx() : null]); }
+  finally {
+    NG[id].classList.remove('on');
+    actors.forEach((a) => { AG[a]?.classList.remove('on'); (LINKS[a] || []).forEach((l) => l.setAttribute('class', 'link')); });
+  }
+}
+function fly(make, from, to, ms, arc = 0) {
+  const g = make();
+  return anim(ms, (p) => {
+    const x = from.x + (to.x - from.x) * p, y = from.y + (to.y - from.y) * p - Math.sin(p * Math.PI) * arc;
+    g.setAttribute('transform', `translate(${x},${y})`);
+  }).then(() => g.remove());
+}
+function burst(x, y, colorVar, n = 12) {
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, d = 34 + Math.random() * 26;
+    const r = el('rect', { x: x - 3, y: y - 3, width: 6, height: 6, class: 'part', fill: `var(${colorVar})` }, L.fx);
+    r.style.setProperty('--dx', Math.cos(a) * d + 'px'); r.style.setProperty('--dy', Math.sin(a) * d + 'px'); r.style.setProperty('--rot', (Math.random() * 360) + 'deg');
+    r.addEventListener('animationend', () => r.remove());
+  }
+}
+function pop(x, y, s, size = 26) {
+  const g = el('g', { transform: `translate(${x},${y})` }, L.fx);
+  const t = txt(g, 0, 0, s, 'ico popin', size);
+  return { g, t, gone() { t.setAttribute('class', 'ico fade'); t.addEventListener('animationend', () => g.remove()); } };
+}
+
+/* ---------- effects, one per station ---------- */
+const FX = {
+  survey() {
+    return Promise.all([0, 1, 2].map((k) => fly(() => el('circle', { r: 5, class: 'sat' }, L.fx), A.survey, { x: C.x + 40 + k * 80, y: C.y + C.h - 10 }, 900 + k * 150, 30)));
+  },
+  async sync() {
+    for (const i of GHOSTS) { SLOT[i].use.classList.add('flash'); await wait(220); slotState(i, 'ghost'); }
+    setAlive();
+  },
+  async pick(i) {
+    slotState(i, 'taken');
+    const beam = el('line', { x1: SLOT[i].x, y1: SLOT[i].y, x2: N.pick.x, y2: N.pick.y - 30, class: 'link on' }, L.fx);
+    await fly(() => el('use', { href: '#inv', x: -12, y: -9, width: 24, height: 17, class: 'inv' }, L.fx), SLOT[i], { x: N.pick.x - 24, y: N.pick.y - 30 }, 700, 20);
+    beam.remove();
+    carry.style.display = '';
+  },
+  async trace() {
+    const pts = [[505, 405], [540, 368], [500, 333], [520, 292]];
+    const made = [];
+    let prev = null;
+    for (const [x, y] of pts) {
+      if (prev) made.push(el('line', { x1: prev[0], y1: prev[1], x2: x, y2: y, class: 'trace-ln popin' }, L.fx));
+      made.push(el('circle', { cx: x, cy: y, r: 7, class: 'trace-dot popin' }, L.fx));
+      prev = [x, y];
+      await wait(260);
+    }
+    const door = pop(548, 292, '🚪', 20);
+    await wait(500);
+    made.forEach((m) => { m.setAttribute('class', m.getAttribute('class').replace('popin', 'fade')); m.addEventListener('animationend', () => m.remove()); });
+    door.gone();
+  },
+  async fork(path) {
+    const icon = { test: '🧪', dead: '🗑️', move: '📦', skip: '⏭️' }[path];
+    const d = pop(N.fork.x, N.fork.y - 62, '🎲', 24);
+    d.t.setAttribute('class', 'ico spin');
+    await wait(700);
+    d.t.setAttribute('class', 'ico popin'); d.t.textContent = icon;
+    await wait(300);
+    d.gone();
+  },
+  async test() {
+    const g = el('g', { transform: `translate(${N.test.x},${N.test.y - 52})` }, L.fx);
+    const r = el('rect', { x: -30, y: -14, width: 60, height: 28, rx: 14, class: 'pill-r popin' }, g);
+    const t = txt(g, 0, 1, '👾❌', 'ico', 16);
+    await wait(800);
+    r.setAttribute('class', 'pill-g popin'); t.textContent = '✅';
+    await wait(500);
+    g.setAttribute('class', 'fade'); g.addEventListener('animationend', () => g.remove());
+    setItem('🧪');
+  },
+  async dead() {
+    await fly(() => { const g = el('g', {}, L.fx); txt(g, 0, 0, '📄', 'ico', 20); return g; }, { x: N.dead.x + 30, y: N.dead.y - 60 }, { x: N.dead.x, y: N.dead.y }, 600);
+    burst(N.dead.x, N.dead.y, '--ghost', 8);
+    setItem('🗑️');
+  },
+  async move() {
+    await fly(() => { const g = el('g', {}, L.fx); txt(g, 0, 0, '📦', 'ico', 20); return g; }, { x: N.move.x, y: N.move.y }, { x: N.move.x + 70, y: N.move.y - 40 }, 700, 30);
+    const home = pop(N.move.x + 70, N.move.y - 40, '🏠', 22);
+    await wait(400); home.gone();
+    setItem('📦');
+  },
+  async skip(i) {
+    const q = pop(N.skip.x, N.skip.y - 52, '❓', 26);
+    await wait(500); q.gone();
+    setAsks(S.asks + 1);
+    carry.style.display = 'none';
+    await fly(() => el('use', { href: '#inv', x: -12, y: -9, width: 24, height: 17, class: 'inv skip' }, L.fx), tok.pos, SLOT[i], 900, 60);
+    slotState(i, 'skip');
+  },
+  async verify(i) {
+    await FX.scan();
+    FX.kill(i);
+  },
+  async scan() {
+    for (let k = 0; k < 2; k++) { const c = el('circle', { cx: N.verify.x, cy: N.verify.y, r: 30, class: 'scan' }, L.fx); c.addEventListener('animationend', () => c.remove()); await wait(350); }
+  },
+  kill(i) {
+    carry.style.display = 'none';
+    burst(N.verify.x - 24, N.verify.y - 30, '--mutant', 14);
+    pop(N.verify.x - 24, N.verify.y - 34, '💥', 26).gone();
+    slotState(i, 'dead');
+    const s = SLOT[i];
+    el('path', { d: `M${s.x - 6},${s.y} l4,5 l9,-10`, class: 'xmark', fill: 'none' }, L.fx);
+    setAlive();
+  },
+  async stage() {
+    const icon = itemT.textContent;
+    if (icon) {
+      setItem('');
+      await fly(() => { const g = el('g', {}, L.fx); txt(g, 0, 0, icon, 'ico', 18); return g; }, { x: tok.pos.x + 25, y: tok.pos.y - 24 }, { x: N.stage.x + 30, y: N.stage.y - 30 }, 500, 20);
+      S.staged++; stageT.textContent = S.staged;
+    }
+  },
+  async review() {
+    const g = el('g', {}, L.fx);
+    const lens = txt(g, 0, 0, '🔎', 'ico', 24);
+    await anim(1300, (p) => { const a = p * Math.PI * 4; lens.setAttribute('x', N.review.x + Math.cos(a) * 46); lens.setAttribute('y', N.review.y + Math.sin(a) * 40); });
+    g.remove();
+    const ok = pop(N.review.x + 40, N.review.y - 44, '✅', 26);
+    await wait(500); ok.gone();
+  },
+  async commit() {
+    for (const gate of GATES) { gate.classList.add('on'); await wait(380); gate.classList.remove('on'); gate.classList.add('ok'); }
+  },
+  async pr() {
+    const card = el('g', { transform: `translate(${N.pr.x},${N.pr.y - 70})`, class: 'popin' }, L.fx);
+    el('rect', { x: -44, y: -18, width: 88, height: 36, rx: 10, class: 'badge' }, card);
+    txt(card, 0, 1, '🔀 🙋', 'ico', 18);
+    await wait(500);
+    const d = reqClock.stop();
+    S.reqDur = d;
+    card.setAttribute('class', 'fade'); card.addEventListener('animationend', () => card.remove());
+  },
+  async ledger() {
+    const colors = { test: '--kill', dead: '--danger', move: '--accent', skip: '--warn' };
+    for (const [k, r] of S.done.entries()) {
+      el('circle', { cx: A.tracker.x + 30 + k * 14, cy: A.tracker.y, r: 5, class: 'row-dot', fill: `var(${colors[r.path]})` }, L.fx);
+      await wait(200);
+    }
+  },
+  async human() {
+    zz.style.display = 'none';
+    N.human.iconEl.textContent = '🧐';
+    if (S.asks) {
+      const n = S.asks; setAsks(0);
+      for (let k = 0; k < n; k++) await fly(() => { const g = el('g', {}, L.fx); txt(g, 0, 0, '❓', 'ico', 18); return g; }, { x: tok.pos.x - 26, y: tok.pos.y + 24 }, { x: N.human.x, y: N.human.y - 40 }, 500, 30);
+      const a = pop(N.human.x, N.human.y - 48, '💬', 22); await wait(500); a.gone();
+    }
+    await wait(500);
+    N.human.iconEl.textContent = '👍';
+  },
+  finish() {
+    const cs = ['--kill', '--accent', '--mutant', '--warn', '--danger'];
+    for (let i = 0; i < 40; i++) {
+      const r = el('rect', { x: N.finish.x - 3, y: N.finish.y - 30, width: 7, height: 7, class: 'part', fill: `var(${cs[i % 5]})` }, L.fx);
+      r.style.setProperty('--dx', (Math.random() * 240 - 120) + 'px'); r.style.setProperty('--dy', (-Math.random() * 160 - 20) + 'px'); r.style.setProperty('--rot', Math.random() * 720 + 'deg');
+      r.style.animationDuration = `calc(${1200 + Math.random() * 600}ms / var(--spd))`;
+      r.addEventListener('animationend', () => r.remove());
+    }
+  },
+};
+
+/* ---------- the story of one run ---------- */
+const PATH_ICON = { test: '🧪', dead: '🗑️', move: '📦', skip: '⏭️' };
+function choosePath() {
+  if (S.mode !== 'random') return S.mode;
+  const r = Math.random();
+  return r < 0.55 ? 'test' : r < 0.72 ? 'dead' : r < 0.86 ? 'move' : 'skip';
+}
+function tally(path, dur) {
+  const s = document.createElement('span');
+  s.textContent = path === 'skip' ? `👾 ⏭️ ❓` : `👾 ${PATH_ICON[path]} ⏱️ ${fmt(dur)}`;
+  if (path === 'skip') s.className = 'skip';
+  $('#tally').appendChild(s);
+}
+const LINES = {
+  choice: {
+    test: 'Reachable! A new test will catch it 🧪',
+    dead: 'Nobody calls this. Dead code!',
+    move: 'Wrong layer. It belongs elsewhere.',
+    skip: 'Fixing it changes behaviour… not my call.',
+  },
+  act: {
+    test: 'Red under the mutant… green on real code!',
+    dead: 'Deleting the dead code 🗑️',
+    move: 'Moving it, as-is, where it belongs 📦',
+    skip: 'Skipped. I’ll bring a ❓ to the human.',
+  },
+};
+async function story() {
+  await visit('start', 700, [], async () => reqClock.start(), 'New job: fix mutants! Clock is ticking ⏱️');
+  await go('start', 'report');
+  await visit('report', 1300, ['ci', 'survey'], FX.survey, 'Grabbing the latest mutation report…');
+  await go('report', 'sync');
+  await visit('sync', 900, ['tracker'], FX.sync, '3 are already handled. Skipping them.');
+  for (let k = 0; k < S.n; k++) {
+    const i = SLOT.findIndex((s) => s.state === 'alive');
+    if (i < 0) break;
+    await go(k ? 'stage' : 'sync', 'pick');
+    fixClock.start();
+    await visit('pick', 900, [], () => FX.pick(i), S.n > 1 ? `Got you! Mutant ${k + 1} of ${S.n} 🎯` : 'Got you, little mutant! 🎯');
+    await go('pick', 'trace');
+    await visit('trace', 1200, [], FX.trace, 'Who calls this? Climbing to the entry point…');
+    await go('trace', 'fork');
+    const path = choosePath();
+    await visit('fork', 900, [], () => FX.fork(path), 'Hmm… which way? 🤔');
+    await wait(say(LINES.choice[path]));
+    await go('fork', path);
+    const actors = { test: ['writeTests'], dead: ['checks'], move: ['checks'], skip: [] }[path];
+    await visit(path, 1100, actors, () => FX[path](i), LINES.act[path]);
+    if (path === 'skip') {
+      const dur = fixClock.stop();
+      S.done.push({ path, dur }); tally(path, dur);
+      await go('skip', 'stage');
+    } else {
+      await go(path, 'verify');
+      await visit('verify', 1000, ['checks'], () => FX.verify(i), 'Scoped mutation run… killed! 💥');
+      const dur = fixClock.stop();
+      S.done.push({ path, dur }); tally(path, dur);
+      await go('verify', 'stage');
+    }
+    const more = k < S.n - 1 && SLOT.some((s) => s.state === 'alive');
+    await visit('stage', 700, [], FX.stage, more ? 'Staged, not committed. Next one!' : 'All staged. Time for a review.');
+  }
+  await go('stage', 'review');
+  await visit('review', 1300, [], FX.review, 'Fresh eyes: a sub-agent checks it all 🕵️');
+  await go('review', 'commit');
+  await visit('commit', 1100, ['lefthook'], FX.commit, 'One commit. Hooks: build, tests, coverage…');
+  await go('commit', 'pr');
+  await visit('pr', 900, ['github'], FX.pr, 'PR open for review. Clock stops!');
+  await go('pr', 'ledger');
+  await visit('ledger', 900, ['tracker'], FX.ledger, 'Writing it all down in the ledger 📒');
+  await go('ledger', 'human');
+  await visit('human', 1300, [], FX.human, S.asks ? 'Wake up, human! I brought you a ❓' : 'Wake up, human! Your review 👋');
+  await go('human', 'finish');
+  await visit('finish', 2600, [], async () => FX.finish(), 'Merged! See you next baseline 🎉');
+}
+async function loop() {
+  for (;;) {
+    reset();
+    const id = runId;
+    try { await story(); await wait(800); }
+    catch (e) { if (!(e instanceof Cancel)) throw e; }
+    if (id !== runId || feed.mode !== 'demo') return; // a restart or the feed took over
+  }
+}
+
+/* ---------- live feed: the board follows a real run (board_feed.py serve) ---------- */
+const REPLAY_RATE = { 0.5: 10, 1: 30, 2.2: 90 };
+const STALE_RUN_SECONDS = 3600;
+const feed = { mode: 'demo', source: null, queue: [], busy: false, catchUp: false, mutant: null };
+function boost() {
+  if (feed.mode === 'demo') return 1;
+  return feed.catchUp ? 12 : feed.queue.length > 3 ? 4 : 1;
+}
+const GRAPH = {};
+SPEC.edges.forEach(([a, b]) => (GRAPH[a] = GRAPH[a] || []).push(b));
+function route(from, to) {
+  const prev = { [from]: null }, todo = [from];
+  while (todo.length) {
+    const n = todo.shift();
+    if (n === to) break;
+    (GRAPH[n] || []).forEach((m) => { if (!(m in prev)) { prev[m] = n; todo.push(m); } });
+  }
+  if (!(to in prev)) return null;
+  const path = [to];
+  while (prev[path[0]] !== null) path.unshift(prev[path[0]]);
+  return path;
+}
+async function moveTo(to) {
+  if (to === cur) return;
+  const path = route(cur, to);
+  if (path && path.length <= 4) {
+    for (let k = 0; k < path.length - 1; k++) await go(path[k], path[k + 1]);
+    return;
+  }
+  const from = { ...tok.pos };
+  await anim(800, (p) => tokenAt(from.x + (N[to].x - from.x) * p, from.y + (N[to].y - from.y) * p - Math.sin(p * Math.PI) * 90));
+  cur = to;
+}
+function nextSlot() {
+  let i = SLOT.findIndex((s) => s.state === 'alive');
+  if (i < 0) { SLOT.forEach((s, k) => s.state !== 'ghost' && slotState(k, 'alive')); i = SLOT.findIndex((s) => s.state === 'alive'); }
+  return i;
+}
+function closeFix(path) {
+  const dur = fixClock.t0 === null ? 0 : fixClock.stop();
+  S.done.push({ path, dur }); tally(path, dur);
+}
+const STEP_LINES = {
+  start: 'New job: fix mutants! Clock is ticking ⏱️', report: 'Grabbing the latest mutation report…',
+  sync: 'Checking the ledger for mutants already handled.', pick: 'Got you, little mutant! 🎯',
+  trace: 'Who calls this? Climbing to the entry point…', verify: 'Scoped mutation run…', kill: 'Killed! 💥',
+  stage: 'Staged, not committed.', review: 'Fresh eyes: a sub-agent checks it all 🕵️',
+  commit: 'One commit. Hooks: build, tests, coverage…', pr: 'PR open for review. Clock stops!',
+  ledger: 'Writing it all down in the ledger 📒', human: 'Your turn, human! 👋',
+};
+const FEED_STEPS = {
+  async start(e) { reqClock.start(); await visit('start', 600, [], null, e.say || STEP_LINES.start); },
+  async report(e) {
+    await moveTo('report');
+    await visit('report', 900, e.actor ? ['ci', e.actor] : ['ci'], e.actor ? FX.survey : null, e.say || (e.actor ? 'Survey sub-agents read every mutant 🛰️' : STEP_LINES.report));
+  },
+  async sync(e) {
+    await moveTo('sync');
+    const first = !SLOT.some((s) => s.state === 'ghost');
+    await visit('sync', 800, ['tracker'], first ? FX.sync : null, e.say || STEP_LINES.sync);
+  },
+  async pick(e) {
+    const i = nextSlot();
+    feed.mutant = { i, path: null };
+    await moveTo('pick');
+    fixClock.start();
+    await visit('pick', 800, [], () => FX.pick(i), e.say || STEP_LINES.pick);
+  },
+  async trace(e) { await moveTo('trace'); await visit('trace', 1000, [], FX.trace, e.say || STEP_LINES.trace); },
+  async verify(e) { await moveTo('verify'); await visit('verify', 800, ['checks'], FX.scan, e.say || STEP_LINES.verify); },
+  async kill(e) {
+    await moveTo('verify');
+    const mutant = feed.mutant || { i: nextSlot(), path: 'test' };
+    await visit('verify', 700, ['checks'], async () => FX.kill(mutant.i), e.say || STEP_LINES.kill);
+    closeFix(mutant.path || 'test');
+  },
+  async stage(e) { await moveTo('stage'); await visit('stage', 600, [], FX.stage, e.say || STEP_LINES.stage); feed.mutant = null; },
+  async review(e) { await moveTo('review'); await visit('review', 1100, [], FX.review, e.say || STEP_LINES.review); },
+  async commit(e) { await moveTo('commit'); await visit('commit', 1100, ['lefthook'], FX.commit, e.say || STEP_LINES.commit); },
+  async pr(e) { await moveTo('pr'); await visit('pr', 900, ['github'], FX.pr, e.say || STEP_LINES.pr); },
+  async ledger(e) { await moveTo('ledger'); await visit('ledger', 900, ['tracker'], FX.ledger, e.say || STEP_LINES.ledger); },
+  async human(e) {
+    await moveTo('human');
+    await visit('human', 1200, [], FX.human, e.say || STEP_LINES.human);
+    await go('human', 'finish');
+    await visit('finish', 1500, [], async () => FX.finish(), 'Done! 🎉');
+  },
+  async say(e) { if (!feed.catchUp) await wait(Math.min(say(e.say), feed.queue.length ? 700 : 2600)); },
+  alive(e) { $('#alive').textContent = e.alive.toLocaleString('en'); },
+  meta(e) { $('#feedName').textContent = e.transcript ? e.transcript.slice(0, 8) : ''; $('#feedName').hidden = !e.transcript; },
+  now(e) {
+    feed.catchUp = false;
+    if (e.t - simNow < STALE_RUN_SECONDS) simNow = e.t; // a finished run keeps its own time
+  },
+  end() { say('That was the whole run 📼'); },
+};
+['test', 'dead', 'move', 'skip'].forEach((path) => {
+  FEED_STEPS[path] = async (e) => {
+    if (!feed.mutant) feed.mutant = { i: nextSlot(), path: null };
+    feed.mutant.path = path;
+    await moveTo('fork');
+    await visit('fork', 600, [], () => FX.fork(path), LINES.choice[path]);
+    await go('fork', path);
+    const actors = { test: ['writeTests'], dead: ['checks'], move: ['checks'], skip: [] }[path];
+    const i = feed.mutant.i;
+    await visit(path, 900, actors, () => FX[path](i), e.say || LINES.act[path]);
+    if (path === 'skip') closeFix('skip');
+  };
+});
+async function pump() {
+  if (feed.busy) return;
+  feed.busy = true;
+  const id = runId;
+  try {
+    while (feed.queue.length) {
+      const e = feed.queue.shift();
+      if (e.t && e.step !== 'now') simNow = Math.max(simNow, e.t);
+      await (FEED_STEPS[e.step] || (() => {}))(e);
+    }
+  } catch (err) {
+    if (!(err instanceof Cancel)) throw err;
+  } finally {
+    if (id === runId) feed.busy = false;
+  }
+}
+function stopFeed() {
+  if (feed.source) feed.source.close();
+  feed.source = null; feed.queue = []; feed.busy = false; feed.catchUp = false; feed.mutant = null;
+}
+function startMode(mode) {
+  stopFeed();
+  feed.mode = mode;
+  document.body.classList.toggle('feed', mode !== 'demo');
+  document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+  setPlaying(true);
+  if (mode === 'demo') { $('#feedName').hidden = true; loop(); return; }
+  reset();
+  simNow = 0;
+  $('#alive').textContent = '—';
+  say(mode === 'live' ? 'Waiting for a fix-mutants run… 👀' : 'Loading the latest run… 📼');
+  feed.source = new EventSource(`events?mode=${mode}&speed=${REPLAY_RATE[speed]}`);
+  feed.source.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    if (e.past) feed.catchUp = true;
+    feed.queue.push(e);
+    pump();
+  };
+  feed.source.addEventListener('error', () => {
+    feed.source.close(); // no auto-reconnect: the server would replay every event again
+    if (mode === 'live') say('Feed stopped. Press 🔄 to reconnect.');
+  });
+}
+
+/* ---------- controls ---------- */
+function setPlaying(p) {
+  playing = p;
+  svg.classList.toggle('paused', !p);
+  $('#tally').classList.toggle('paused', !p);
+  $('#play').textContent = p ? '⏸️' : '▶️';
+  $('#play').title = p ? 'Pause' : 'Play';
+  $('#play').setAttribute('aria-label', p ? 'Pause' : 'Play');
+}
+$('#play').onclick = () => setPlaying(!playing);
+$('#restart').onclick = () => startMode(feed.mode);
+document.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => startMode(b.dataset.mode));
+function pressGroup(attr, btn) { document.querySelectorAll(`[${attr}]`).forEach((b) => b.setAttribute('aria-pressed', String(b === btn))); }
+document.querySelectorAll('[data-speed]').forEach((b) => b.onclick = () => {
+  speed = +b.dataset.speed; document.documentElement.style.setProperty('--spd', speed); pressGroup('data-speed', b);
+});
+document.querySelectorAll('[data-n]').forEach((b) => b.onclick = () => { S.n = +b.dataset.n; pressGroup('data-n', b); setPlaying(true); loop(); });
+document.querySelectorAll('[data-path]').forEach((b) => b.onclick = () => { S.mode = b.dataset.path; pressGroup('data-path', b); setPlaying(true); loop(); });
+$('#talk').onclick = () => {
+  talkOn = !talkOn;
+  $('#talk').setAttribute('aria-pressed', String(talkOn));
+  bub.style.display = talkOn && bubW ? '' : 'none';
+};
+$('#labels').onclick = () => {
+  const on = svg.classList.toggle('labels');
+  $('#labels').setAttribute('aria-pressed', String(on));
+};
+
+/* ---------- tooltips: words on demand only ---------- */
+const tip = $('#tip'), wrapEl = $('#boardWrap');
+function showTip(e) {
+  const g = e.currentTarget, r = g.getBoundingClientRect(), w = wrapEl.getBoundingClientRect();
+  tip.textContent = g.dataset.tip; tip.hidden = false;
+  const left = Math.min(r.left - w.left + wrapEl.scrollLeft + r.width / 2 - 130, wrapEl.scrollWidth - 270);
+  tip.style.left = Math.max(8, left) + 'px';
+  const below = r.top - w.top < 120;
+  tip.style.top = (below ? r.bottom - w.top + 8 : r.top - w.top - tip.offsetHeight - 8) + 'px';
+}
+document.querySelectorAll('[data-tip]').forEach((g) => {
+  g.addEventListener('pointerenter', showTip); g.addEventListener('focus', showTip);
+  g.addEventListener('pointerleave', () => (tip.hidden = true)); g.addEventListener('blur', () => (tip.hidden = true));
+});
+
+if (matchMedia('(prefers-reduced-motion: reduce)').matches) setPlaying(false);
+requestAnimationFrame(frame);
+loop();
+fetch('health', { cache: 'no-store' })
+  .then((r) => (r.ok ? r.json() : null))
+  .then((health) => {
+    if (!health || !('transcript' in health)) return;
+    $('#modes').hidden = false;
+    const wanted = location.hash.slice(1);
+    startMode(['demo', 'replay', 'live'].includes(wanted) ? wanted : 'live');
+  })
+  .catch(() => {});
+</script>
