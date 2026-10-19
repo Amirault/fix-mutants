@@ -54,6 +54,10 @@ esac
 installed="${git_root}/.claude/skills/fix-mutants"
 [[ "${target}" == agents ]] && installed="${git_root}/.agents/skills/fix-mutants"
 
+if [[ -d "${project}/.fix-mutants" && ! " ${passthrough[*]-} " =~ " --force " ]]; then
+  echo "kept: ${project}/.fix-mutants (existing profile; pass --force to regenerate it)"
+  exit 0
+fi
 python3 "${installed}/scripts/init_profile.py" --repo "${project}" ${passthrough[@]+"${passthrough[@]}"}
 
 cat <<NEXT
