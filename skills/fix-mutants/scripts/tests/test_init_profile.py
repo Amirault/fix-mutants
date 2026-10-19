@@ -54,6 +54,17 @@ class InitProfileTests(unittest.TestCase):
         self.assertEqual(profile["test_roots"], ["tests/App.Tests"])
         self.assertEqual(profile["report_schema_version"], "2")
 
+    def test_given_new_project_when_initialising_should_start_an_empty_ledger(self):
+        # Given
+        self.dotnet_project()
+
+        # When
+        code = self.run_init()
+
+        # Then
+        self.assertEqual(code, 0)
+        self.assertEqual((self.repo / ".fix-mutants/ledger.jsonl").read_text(), "")
+
     def test_given_dotnet_project_in_subfolder_when_initialising_should_prefix_paths_with_it(self):
         # Given
         self.dotnet_project("services/shop/")

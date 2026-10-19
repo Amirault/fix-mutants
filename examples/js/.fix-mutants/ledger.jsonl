@@ -1,0 +1,1 @@
+{"file": "examples/js/src/shipping.js", "lines": "7", "mutator": "EqualityOperator", "status": "fixed", "pr": null, "note": "`orderTotal < 0` → `<= 0`: a zero total had no test; walkthrough commit, no PR"}

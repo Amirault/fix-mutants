@@ -8,7 +8,8 @@ The skill core knows nothing about a stack or a project. Everything specific liv
 | `profile.json`         | Read by `mutant_checks.py` (below)                                                                |
 | `PROFILE.md`           | Everything else the agent must follow (sections below)                                            |
 | `report-fetch.md`      | How to obtain and verify the mutation report                                                      |
-| `MUTATION-TRACKING.md` | The ledger: `🟢 Fixed`, `⚪ Resolved-incidentally`, `🟡 Skipped`, `🔴 Regressed`, score trend, sync log, execution history |
+| `ledger.jsonl`         | One JSON row per examined mutant, written only by `scripts/ledger.py` (`references/ledger.md`)    |
+| `MUTATION-TRACKING.md` | Latest baseline, score trend and progress curve, execution history, sync log                     |
 
 ## `profile.json`
 
