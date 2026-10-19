@@ -1,10 +1,12 @@
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "mutant_checks.py"
@@ -12,6 +14,11 @@ SCRIPT = Path(__file__).resolve().parents[1] / "mutant_checks.py"
 
 class MutantChecksTests(unittest.TestCase):
     def setUp(self):
+        environment = mock.patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+        for name in [name for name in os.environ if name.startswith("GIT_")]:
+            del os.environ[name]
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.repo = Path(self.temporary.name)
@@ -199,6 +206,19 @@ class MutantChecksTests(unittest.TestCase):
             self.checks.check_change(
                 self.repo, "HEAD", self.target, "removed", removed_code="invented code"
             )
+
+    def test_given_crlf_bom_file_when_checking_partial_removal_should_accept_it(self):
+        # Given
+        self.source.write_bytes(b"\xef\xbb\xbfclass Example { }\r\nclass Other { }\r\n")
+        self.git("add", self.target)
+        self.git("commit", "-qm", "crlf source")
+        self.source.write_bytes(b"\xef\xbb\xbfclass Other { }\r\n")
+        self.git("add", self.target)
+
+        # When / Then
+        self.checks.check_change(
+            self.repo, "HEAD", self.target, "removed", removed_code="class Example { }\r\n"
+        )
 
     def test_given_move_when_checking_change_should_require_staged_destination_outside_production_scope(self):
         # Given

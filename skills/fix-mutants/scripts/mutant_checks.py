@@ -65,7 +65,7 @@ def inside(root, name):
 
 
 def staged_source(repo, name):
-    source = inside(repo, name).read_text(encoding="utf-8-sig")
+    source = inside(repo, name).read_bytes().decode("utf-8-sig")
     if not source.strip() or source != git(repo, "show", f":{name}"):
         raise ValueError("source must be nonempty and match the staged version")
     return source
@@ -180,7 +180,7 @@ def verify_report(report, repo, target, outcome, *, new_test=None, removed_code=
             raise ValueError("report still contains the deleted source")
         return result
     data = files.get(source)
-    if not data or data["source"] != source.read_text(encoding="utf-8-sig"):
+    if not data or data["source"] != source.read_bytes().decode("utf-8-sig"):
         raise ValueError("report source differs from current source")
     matches = [
         mutant for mutant in data["mutants"]
